@@ -1,11 +1,11 @@
-from picamera import Picamera2
+from picamera2 import Picamera2
 import cv2
 import os
 import json
 from datetime import datetime
 import albumentations as A
 
-# Create dataset structure for your specific brick types
+# Create dataset structure for your specific bricks
 dataset_folders = [
     # Raw images (backup)
     "brick_dataset/raw/white_1x3",
@@ -39,7 +39,7 @@ dataset_folders = [
     "brick_dataset/test/blue_2x6",
     "brick_dataset/test/blue_1x6",
     "brick_dataset/test/no_brick",
-    # Other folders
+    # Augmented folders
     "brick_dataset/augmented/white_1x3",
     "brick_dataset/augmented/white_2x2",
     "brick_dataset/augmented/white_2x4",
@@ -52,17 +52,16 @@ dataset_folders = [
 for folder in dataset_folders:
     os.makedirs(folder, exist_ok=True)
 
-# Albumentations pipeline for brick recognition
+# Albumentations pipeline optimized for conveyor belt brick recognition
 augmentation_pipeline = A.Compose([
-    A.RandomRotate90(p=0.5),
-    A.HorizontalFlip(p=0.5),
-    A.VerticalFlip(p=0.3),
-    A.RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.3, p=0.8),
-    A.GaussNoise(noise_scale_factor=0.9, per_channel=True, p=0.5),
-    A.GaussianBlur(blur_limit=(1, 3), p=0.3),
-    A.HueSaturationValue(hue_shift_limit=20, sat_shift_limit=30, val_shift_limit=20, p=0.5),
-    A.RandomShadow(p=0.3),
-    A.CoarseDropout(num_holes_range=(4, 8), hole_height_range=(8, 16), hole_width_range=(8, 16), p=0.3),
+    A.RandomRotate90(p=0.8),  # Very common - bricks tumble and land in any 90° orientation
+    A.Rotate(limit=5, p=0.6),  # Small angle variations as bricks shift on belt
+    A.HorizontalFlip(p=0.5),  # Bricks can be upside down
+    A.VerticalFlip(p=0.5),  # Bricks can be upside down
+    A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.7),  # Lighting variations along belt
+    A.HueSaturationValue(hue_shift_limit=10, sat_shift_limit=20, val_shift_limit=15, p=0.5),  # Color variations
+    A.RandomShadow(p=0.4),  # Belt lighting creates shadows
+    A.GaussNoise(noise_scale_factor=0.9, per_channel=True, p=0.3),  # Camera noise
 ])
 
 # Camera setup
@@ -90,7 +89,8 @@ metadata = {
         "created": datetime.now().isoformat(),
         "camera": "Raspberry Pi Camera Module 2",
         "resolution": "640x480",
-        "purpose": "Brick Recognition Training Data"
+        "purpose": "LEGO Brick Recognition Training Data",
+        "platform": "Raspberry Pi"
     },
     "classes": {},
     "augmentation_config": str(augmentation_pipeline)
@@ -128,24 +128,58 @@ def save_metadata():
     print(f"Metadata saved to brick_dataset/metadata.json")
 
 
-def augment_image(image_path, output_folder, base_name, count=5):
-    """Apply augmentations to an image"""
-    image = cv2.imread(image_path)
-    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+def augment_image(image_path, brick_type, base_name, count=5):
+    """Apply augmentations to an image and save in organized folders"""
+    try:
+        print(f"Starting augmentation of {image_path}")
 
-    for i in range(count):
-        # Apply augmentation
-        augmented = augmentation_pipeline(image=image_rgb)
-        augmented_image = augmented['image']
+        # Check if source image exists
+        if not os.path.exists(image_path):
+            print(f"ERROR: Source image {image_path} does not exist!")
+            return
 
-        # Convert back to BGR for saving
-        augmented_bgr = cv2.cvtColor(augmented_image, cv2.COLOR_RGB2BGR)
+        # Read and convert image
+        image = cv2.imread(image_path)
+        if image is None:
+            print(f"ERROR: Could not read image {image_path}")
+            return
 
-        # Save augmented image
-        aug_filename = f"{output_folder}/aug_{base_name}_{i + 1:02d}.jpg"
-        cv2.imwrite(aug_filename, augmented_bgr)
+        print(f"Image loaded successfully, shape: {image.shape}")
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-    print(f"Created {count} augmented versions")
+        # HERE - "augmented" prefix is added to the path
+        output_folder = f"brick_dataset/augmented/{brick_type}"
+        print(f"Saving augmented images to: {output_folder}")
+
+        # Ensure output folder exists
+        os.makedirs(output_folder, exist_ok=True)
+
+        for i in range(count):
+            print(f"Generating augmentation {i + 1}/{count}")
+
+            # Apply augmentation
+            augmented = augmentation_pipeline(image=image_rgb)
+            augmented_image = augmented['image']
+
+            # Convert back to BGR for saving
+            augmented_bgr = cv2.cvtColor(augmented_image, cv2.COLOR_RGB2BGR)
+
+            # Save augmented image
+            aug_filename = f"{output_folder}/aug_{base_name}_{i + 1:02d}.jpg"
+            print(f"Saving: {aug_filename}")
+
+            success = cv2.imwrite(aug_filename, augmented_bgr)
+            if success:
+                print(f"  ✓ Saved successfully")
+            else:
+                print(f"  ✗ Failed to save {aug_filename}")
+
+        print(f"Augmentation completed for {brick_type}")
+
+    except Exception as e:
+        print(f"ERROR in augment_image: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def auto_populate_dataset():
@@ -163,7 +197,7 @@ def auto_populate_dataset():
 
         # Collect all images for this brick type
         raw_folder = f"brick_dataset/raw/{brick_type}"
-        augmented_folder = f"brick_dataset/augmented"
+        augmented_folder = f"brick_dataset/augmented/{brick_type}"
 
         all_images = []
 
@@ -176,7 +210,7 @@ def auto_populate_dataset():
         # Add augmented images for this brick type
         if os.path.exists(augmented_folder):
             for img_file in os.listdir(augmented_folder):
-                if img_file.lower().endswith(('.jpg', '.jpeg', '.png')) and brick_type in img_file:
+                if img_file.lower().endswith(('.jpg', '.jpeg', '.png')):
                     all_images.append(os.path.join(augmented_folder, img_file))
 
         if not all_images:
@@ -254,6 +288,27 @@ def show_stats():
     print("=" * 50 + "\n")
 
 
+def test_folder_access():
+    """Test if all folders are accessible"""
+    print("Testing folder access...")
+    for brick_type in brick_types:
+        folders_to_check = [
+            f"brick_dataset/raw/{brick_type}",
+            f"brick_dataset/augmented/{brick_type}",
+            f"brick_dataset/train/{brick_type}",
+            f"brick_dataset/val/{brick_type}",
+            f"brick_dataset/test/{brick_type}"
+        ]
+
+        for folder in folders_to_check:
+            exists = os.path.exists(folder)
+            writable = os.access(folder, os.W_OK) if exists else "N/A"
+            print(f"{folder}: exists={exists}, writable={writable}")
+
+
+# Test folder access once at startup
+test_folder_access()
+
 while True:
     frame = picam2.capture_array()
 
@@ -282,7 +337,7 @@ while True:
     cv2.putText(frame, "A=Augment, S=Stats, R=Reset, D=Dataset, Q=Quit", (10, frame.shape[0] - 20),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
 
-    cv2.imshow("Brick Data Collection", frame)
+    cv2.imshow("LEGO Brick Data Collection", frame)
 
     key = cv2.waitKey(1) & 0xFF
 
@@ -322,15 +377,34 @@ while True:
         last_captured = filename
 
     elif key == ord('a'):
-        # Augment last captured image
+        # Augment last captured image with detailed debugging
         try:
             if 'last_captured' in locals():
+                print(f"DEBUG: last_captured = {last_captured}")
+                print(f"DEBUG: current_type = {current_type}")
+                print(f"DEBUG: File exists = {os.path.exists(last_captured)}")
+
                 base_name = os.path.splitext(os.path.basename(last_captured))[0]
+                print(f"DEBUG: base_name = {base_name}")
+                print(f"DEBUG: Expected output folder = brick_dataset/augmented/{current_type}")
+
+                # Call augmentation function - "augmented" prefix added inside function
                 augment_image(last_captured, current_type, base_name, 5)
+
+                # Check if files were created
+                output_folder = f"brick_dataset/augmented/{current_type}"
+                if os.path.exists(output_folder):
+                    files = os.listdir(output_folder)
+                    print(f"DEBUG: Files in {output_folder}: {files}")
+                else:
+                    print(f"DEBUG: Output folder {output_folder} doesn't exist!")
             else:
                 print("No image to augment. Capture an image first.")
         except Exception as e:
             print(f"Augmentation failed: {e}")
+            import traceback
+
+            traceback.print_exc()
 
 cv2.destroyAllWindows()
 picam2.close()
@@ -341,3 +415,4 @@ print("Next steps:")
 print("1. Review captured images")
 print("2. Run batch augmentation if needed")
 print("3. Train your model with the dataset")
+print("4. Deploy for real-time brick recognition!")
