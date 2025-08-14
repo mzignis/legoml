@@ -5,7 +5,7 @@ import json
 from datetime import datetime
 import albumentations as A
 
-# Create dataset structure for your specific bricks
+# Create dataset structure for your specific brick types
 dataset_folders = [
     # Raw images (backup)
     "brick_dataset/raw/white_1x3",

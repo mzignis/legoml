@@ -39,7 +39,13 @@ dataset_folders = [
     "brick_dataset/test/blue_1x6",
     "brick_dataset/test/no_brick",
     # Other folders
-    "brick_dataset/augmented",
+    "brick_dataset/augmented/white_1x3",
+    "brick_dataset/augmented/white_2x2",
+    "brick_dataset/augmented/white_2x4",
+    "brick_dataset/augmented/blue_2x2",
+    "brick_dataset/augmented/blue_2x6",
+    "brick_dataset/augmented/blue_1x6",
+    "brick_dataset/augmented/no_brick",
     "preview_frames"  # For preview images if display doesn't work
 ]
 
@@ -152,24 +158,57 @@ def save_metadata():
     print(f"Metadata saved to brick_dataset/metadata.json")
 
 
-def augment_image(image_path, output_folder, base_name, count=5):
-    """Apply augmentations to an image"""
-    image = cv2.imread(image_path)
-    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+def augment_image(image_path, brick_type, base_name, count=5):
+    """Apply augmentations to an image and save in organized folders"""
+    try:
+        print(f"Starting augmentation of {image_path}")
 
-    for i in range(count):
-        # Apply augmentation
-        augmented = augmentation_pipeline(image=image_rgb)
-        augmented_image = augmented['image']
+        # Check if source image exists
+        if not os.path.exists(image_path):
+            print(f"ERROR: Source image {image_path} does not exist!")
+            return
 
-        # Convert back to BGR for saving
-        augmented_bgr = cv2.cvtColor(augmented_image, cv2.COLOR_RGB2BGR)
+        # Read and convert image
+        image = cv2.imread(image_path)
+        if image is None:
+            print(f"ERROR: Could not read image {image_path}")
+            return
 
-        # Save augmented image
-        aug_filename = f"{output_folder}/aug_{base_name}_{i + 1:02d}.jpg"
-        cv2.imwrite(aug_filename, augmented_bgr)
+        print(f"Image loaded successfully, shape: {image.shape}")
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-    print(f"Created {count} augmented versions")
+        output_folder = f"brick_dataset/augmented/{brick_type}"
+        print(f"Saving augmented images to: {output_folder}")
+
+        # Ensure output folder exists
+        os.makedirs(output_folder, exist_ok=True)
+
+        for i in range(count):
+            print(f"Generating augmentation {i + 1}/{count}")
+
+            # Apply augmentation
+            augmented = augmentation_pipeline(image=image_rgb)
+            augmented_image = augmented['image']
+
+            # Convert back to BGR for saving
+            augmented_bgr = cv2.cvtColor(augmented_image, cv2.COLOR_RGB2BGR)
+
+            # Save augmented image
+            aug_filename = f"{output_folder}/aug_{base_name}_{i + 1:02d}.jpg"
+            print(f"Saving: {aug_filename}")
+
+            success = cv2.imwrite(aug_filename, augmented_bgr)
+            if success:
+                print(f"  ✓ Saved successfully")
+            else:
+                print(f"  ✗ Failed to save {aug_filename}")
+
+        print(f"Augmentation completed for {brick_type}")
+
+    except Exception as e:
+        print(f"ERROR in augment_image: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def auto_populate_dataset():
@@ -198,9 +237,10 @@ def auto_populate_dataset():
                     all_images.append(os.path.join(raw_folder, img_file))
 
         # Add augmented images for this brick type
+        augmented_folder = f"brick_dataset/augmented/{brick_type}"
         if os.path.exists(augmented_folder):
             for img_file in os.listdir(augmented_folder):
-                if img_file.lower().endswith(('.jpg', '.jpeg', '.png')) and brick_type in img_file:
+                if img_file.lower().endswith(('.jpg', '.jpeg', '.png')):
                     all_images.append(os.path.join(augmented_folder, img_file))
 
         if not all_images:
@@ -257,14 +297,19 @@ def show_stats():
     print("-" * 50)
     print(f"TOTAL RAW IMAGES: {sum(image_counters.values()):4d}")
 
-    # Count augmented images
-    augmented_count = 0
-    if os.path.exists("brick_dataset/augmented"):
-        augmented_count = len([f for f in os.listdir("brick_dataset/augmented")
-                               if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
+    # Count augmented images by type
+    augmented_counts = {}
+    for brick_type in brick_types:
+        augmented_folder = f"brick_dataset/augmented/{brick_type}"
+        if os.path.exists(augmented_folder):
+            augmented_counts[brick_type] = len([f for f in os.listdir(augmented_folder)
+                                                if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
+        else:
+            augmented_counts[brick_type] = 0
 
-    print(f"AUGMENTED IMAGES: {augmented_count:4d}")
-    print(f"TOTAL DATASET:    {sum(image_counters.values()) + augmented_count:4d}")
+    total_augmented = sum(augmented_counts.values())
+    print(f"AUGMENTED IMAGES: {total_augmented:4d}")
+    print(f"TOTAL DATASET:    {sum(image_counters.values()) + total_augmented:4d}")
 
     # Show completion percentage (assuming target of ~50 images per type)
     target_per_type = 50
@@ -397,7 +442,7 @@ while True:
         try:
             if 'last_captured' in locals():
                 base_name = os.path.splitext(os.path.basename(last_captured))[0]
-                augment_image(last_captured, f"brick_dataset/augmented", base_name, 5)
+                augment_image(last_captured, current_type, base_name, 5)
             else:
                 print("No image to augment. Capture an image first.")
         except Exception as e:
