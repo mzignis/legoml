@@ -5,47 +5,87 @@ import json
 from datetime import datetime
 import albumentations as A
 
-# Create dataset structure for your specific bricks
+# Create dataset structure for your specific bricks with condition detection
 dataset_folders = [
-    # Raw images (backup)
-    "brick_dataset/raw/white_1x3",
-    "brick_dataset/raw/white_2x2",
-    "brick_dataset/raw/white_2x4",
-    "brick_dataset/raw/blue_2x2",
-    "brick_dataset/raw/blue_2x6",
-    "brick_dataset/raw/blue_1x6",
+    # Raw images (backup) - Good condition
+    "brick_dataset/raw/white_1x3_good",
+    "brick_dataset/raw/white_2x2_good",
+    "brick_dataset/raw/white_2x4_good",
+    "brick_dataset/raw/blue_2x2_good",
+    "brick_dataset/raw/blue_2x6_good",
+    "brick_dataset/raw/blue_1x6_good",
+    # Raw images (backup) - Damaged condition
+    "brick_dataset/raw/white_1x3_damaged",
+    "brick_dataset/raw/white_2x2_damaged",
+    "brick_dataset/raw/white_2x4_damaged",
+    "brick_dataset/raw/blue_2x2_damaged",
+    "brick_dataset/raw/blue_2x6_damaged",
+    "brick_dataset/raw/blue_1x6_damaged",
+    # Background
     "brick_dataset/raw/no_brick",
-    # Training structure
-    "brick_dataset/train/white_1x3",
-    "brick_dataset/train/white_2x2",
-    "brick_dataset/train/white_2x4",
-    "brick_dataset/train/blue_2x2",
-    "brick_dataset/train/blue_2x6",
-    "brick_dataset/train/blue_1x6",
+    # Training structure - Good condition
+    "brick_dataset/train/white_1x3_good",
+    "brick_dataset/train/white_2x2_good",
+    "brick_dataset/train/white_2x4_good",
+    "brick_dataset/train/blue_2x2_good",
+    "brick_dataset/train/blue_2x6_good",
+    "brick_dataset/train/blue_1x6_good",
+    # Training structure - Damaged condition
+    "brick_dataset/train/white_1x3_damaged",
+    "brick_dataset/train/white_2x2_damaged",
+    "brick_dataset/train/white_2x4_damaged",
+    "brick_dataset/train/blue_2x2_damaged",
+    "brick_dataset/train/blue_2x6_damaged",
+    "brick_dataset/train/blue_1x6_damaged",
+    # Training structure - Background
     "brick_dataset/train/no_brick",
-    # Validation structure
-    "brick_dataset/val/white_1x3",
-    "brick_dataset/val/white_2x2",
-    "brick_dataset/val/white_2x4",
-    "brick_dataset/val/blue_2x2",
-    "brick_dataset/val/blue_2x6",
-    "brick_dataset/val/blue_1x6",
+    # Validation structure - Good condition
+    "brick_dataset/val/white_1x3_good",
+    "brick_dataset/val/white_2x2_good",
+    "brick_dataset/val/white_2x4_good",
+    "brick_dataset/val/blue_2x2_good",
+    "brick_dataset/val/blue_2x6_good",
+    "brick_dataset/val/blue_1x6_good",
+    # Validation structure - Damaged condition
+    "brick_dataset/val/white_1x3_damaged",
+    "brick_dataset/val/white_2x2_damaged",
+    "brick_dataset/val/white_2x4_damaged",
+    "brick_dataset/val/blue_2x2_damaged",
+    "brick_dataset/val/blue_2x6_damaged",
+    "brick_dataset/val/blue_1x6_damaged",
+    # Validation structure - Background
     "brick_dataset/val/no_brick",
-    # Test structure
-    "brick_dataset/test/white_1x3",
-    "brick_dataset/test/white_2x2",
-    "brick_dataset/test/white_2x4",
-    "brick_dataset/test/blue_2x2",
-    "brick_dataset/test/blue_2x6",
-    "brick_dataset/test/blue_1x6",
+    # Test structure - Good condition
+    "brick_dataset/test/white_1x3_good",
+    "brick_dataset/test/white_2x2_good",
+    "brick_dataset/test/white_2x4_good",
+    "brick_dataset/test/blue_2x2_good",
+    "brick_dataset/test/blue_2x6_good",
+    "brick_dataset/test/blue_1x6_good",
+    # Test structure - Damaged condition
+    "brick_dataset/test/white_1x3_damaged",
+    "brick_dataset/test/white_2x2_damaged",
+    "brick_dataset/test/white_2x4_damaged",
+    "brick_dataset/test/blue_2x2_damaged",
+    "brick_dataset/test/blue_2x6_damaged",
+    "brick_dataset/test/blue_1x6_damaged",
+    # Test structure - Background
     "brick_dataset/test/no_brick",
-    # Augmented folders
-    "brick_dataset/augmented/white_1x3",
-    "brick_dataset/augmented/white_2x2",
-    "brick_dataset/augmented/white_2x4",
-    "brick_dataset/augmented/blue_2x2",
-    "brick_dataset/augmented/blue_2x6",
-    "brick_dataset/augmented/blue_1x6",
+    # Augmented folders - Good condition
+    "brick_dataset/augmented/white_1x3_good",
+    "brick_dataset/augmented/white_2x2_good",
+    "brick_dataset/augmented/white_2x4_good",
+    "brick_dataset/augmented/blue_2x2_good",
+    "brick_dataset/augmented/blue_2x6_good",
+    "brick_dataset/augmented/blue_1x6_good",
+    # Augmented folders - Damaged condition
+    "brick_dataset/augmented/white_1x3_damaged",
+    "brick_dataset/augmented/white_2x2_damaged",
+    "brick_dataset/augmented/white_2x4_damaged",
+    "brick_dataset/augmented/blue_2x2_damaged",
+    "brick_dataset/augmented/blue_2x6_damaged",
+    "brick_dataset/augmented/blue_1x6_damaged",
+    # Augmented folders - Background
     "brick_dataset/augmented/no_brick"
 ]
 
@@ -70,11 +110,16 @@ config = picam2.create_preview_configuration(main={"format": "RGB888", "size": (
 picam2.configure(config)
 picam2.start()
 
-# Current brick type being collected - Updated for your specific bricks
+# Current brick type being collected - Updated for condition detection
 brick_types = [
-    "white_1x3", "white_2x2", "white_2x4",  # White bricks
-    "blue_2x2", "blue_2x6", "blue_1x6",  # Blue bricks
-    "no_brick"  # Background/empty
+    # Good condition bricks
+    "white_1x3_good", "white_2x2_good", "white_2x4_good",
+    "blue_2x2_good", "blue_2x6_good", "blue_1x6_good",
+    # Damaged condition bricks
+    "white_1x3_damaged", "white_2x2_damaged", "white_2x4_damaged",
+    "blue_2x2_damaged", "blue_2x6_damaged", "blue_1x6_damaged",
+    # Background
+    "no_brick"
 ]
 current_type_index = 0
 current_type = brick_types[current_type_index]
@@ -96,13 +141,15 @@ metadata = {
     "augmentation_config": str(augmentation_pipeline)
 }
 
-print("LEGO Brick Recognition Data Collection System")
-print("=" * 60)
+print("LEGO Brick Recognition & Condition Detection System")
+print("=" * 70)
 print("Brick Types to Collect:")
-print("  White: 1x3, 2x2, 2x4")
-print("  Blue:  2x2, 2x6, 1x6")
-print("  Plus:  no_brick (empty/background)")
-print("=" * 60)
+print("  White Good: 1x3, 2x2, 2x4")
+print("  Blue Good:  2x2, 2x6, 1x6")
+print("  White Damaged: 1x3, 2x2, 2x4")
+print("  Blue Damaged:  2x2, 2x6, 1x6")
+print("  Plus: no_brick (empty/background)")
+print("=" * 70)
 print("Controls:")
 print("'q' - Quit and save metadata")
 print("'n' - Switch to next brick type")
@@ -112,7 +159,7 @@ print("Space - Capture image")
 print("'a' - Auto-augment last captured image (5x)")
 print("'r' - Reset current type counter")
 print("'d' - Auto-populate train/val/test dataset")
-print("=" * 60)
+print("=" * 70)
 
 
 def save_metadata():
@@ -248,23 +295,31 @@ def auto_populate_dataset():
 
 def show_stats():
     """Display collection statistics"""
-    print("\n" + "=" * 50)
-    print("LEGO BRICK COLLECTION STATISTICS")
-    print("=" * 50)
+    print("\n" + "=" * 60)
+    print("LEGO BRICK COLLECTION & CONDITION STATISTICS")
+    print("=" * 60)
 
-    # Group by color for better organization
-    print("WHITE BRICKS:")
-    for brick_type in ["white_1x3", "white_2x2", "white_2x4"]:
-        print(f"  {brick_type:12}: {image_counters[brick_type]:4d} images")
+    # Group by color and condition
+    print("WHITE BRICKS (GOOD):")
+    for brick_type in ["white_1x3_good", "white_2x2_good", "white_2x4_good"]:
+        print(f"  {brick_type:18}: {image_counters[brick_type]:4d} images")
 
-    print("\nBLUE BRICKS:")
-    for brick_type in ["blue_2x2", "blue_2x6", "blue_1x6"]:
-        print(f"  {brick_type:12}: {image_counters[brick_type]:4d} images")
+    print("\nWHITE BRICKS (DAMAGED):")
+    for brick_type in ["white_1x3_damaged", "white_2x2_damaged", "white_2x4_damaged"]:
+        print(f"  {brick_type:18}: {image_counters[brick_type]:4d} images")
+
+    print("\nBLUE BRICKS (GOOD):")
+    for brick_type in ["blue_2x2_good", "blue_2x6_good", "blue_1x6_good"]:
+        print(f"  {brick_type:18}: {image_counters[brick_type]:4d} images")
+
+    print("\nBLUE BRICKS (DAMAGED):")
+    for brick_type in ["blue_2x2_damaged", "blue_2x6_damaged", "blue_1x6_damaged"]:
+        print(f"  {brick_type:18}: {image_counters[brick_type]:4d} images")
 
     print(f"\nBACKGROUND:")
-    print(f"  {'no_brick':12}: {image_counters['no_brick']:4d} images")
+    print(f"  {'no_brick':18}: {image_counters['no_brick']:4d} images")
 
-    print("-" * 50)
+    print("-" * 60)
     print(f"TOTAL RAW IMAGES: {sum(image_counters.values()):4d}")
 
     # Count augmented images by type
@@ -281,11 +336,11 @@ def show_stats():
     print(f"AUGMENTED IMAGES: {total_augmented:4d}")
     print(f"TOTAL DATASET:    {sum(image_counters.values()) + total_augmented:4d}")
 
-    # Show completion percentage (assuming target of ~50 images per type)
-    target_per_type = 50
+    # Show completion percentage (assuming target of ~30 images per type due to more categories)
+    target_per_type = 30
     completion = (sum(image_counters.values()) / (len(brick_types) * target_per_type)) * 100
     print(f"COMPLETION:       {completion:.1f}% (target: {target_per_type} per type)")
-    print("=" * 50 + "\n")
+    print("=" * 60 + "\n")
 
 
 def test_folder_access():
@@ -316,11 +371,13 @@ while True:
     clean_frame = frame.copy()
 
     # Add better UI overlay with color coding (only for display)
-    color = (0, 255, 0)  # Green for white bricks
-    if "blue" in current_type:
-        color = (255, 0, 0)  # Blue for blue bricks
+    color = (0, 255, 0)  # Green for good condition
+    if "damaged" in current_type:
+        color = (0, 0, 255)  # Red for damaged condition
     elif current_type == "no_brick":
         color = (128, 128, 128)  # Gray for no brick
+    elif "blue" in current_type:
+        color = (255, 0, 0)  # Blue for blue bricks (good condition)
 
     cv2.putText(frame, f"Collecting: {current_type.upper().replace('_', ' ')}", (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
@@ -331,13 +388,21 @@ while True:
     cv2.putText(frame, f"Type {current_type_index + 1}/{len(brick_types)}", (10, 120),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
+    # Show condition status
+    if "good" in current_type:
+        cv2.putText(frame, "CONDITION: GOOD", (10, 150),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+    elif "damaged" in current_type:
+        cv2.putText(frame, "CONDITION: DAMAGED", (10, 150),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+
     # Instructions
     cv2.putText(frame, "SPACE=Capture, N=Next, P=Prev", (10, frame.shape[0] - 40),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
     cv2.putText(frame, "A=Augment, S=Stats, R=Reset, D=Dataset, Q=Quit", (10, frame.shape[0] - 20),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
 
-    cv2.imshow("LEGO Brick Data Collection", frame)
+    cv2.imshow("LEGO Brick Recognition & Condition Detection", frame)
 
     key = cv2.waitKey(1) & 0xFF
 
