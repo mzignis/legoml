@@ -209,4 +209,7 @@ __marimo__/
 # Ignore data foler
 brick_dataset
 preview_frames
-
+confusion_matrix.png
+training_history.png
+brick_classifier.pth
+training_summary.json
