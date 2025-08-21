@@ -21,6 +21,7 @@ class MLCommandSender:
         
         devices = await BleakScanner.discover(timeout=15.0)  # Longer timeout
         
+        # we need to do this as the hub uses a andom non-presistent MAC address
         for device in devices:
             if device.name and HUB_NAME in device.name:
                 print(f"Found hub: {device.name} ({device.address})")
@@ -98,7 +99,6 @@ class MLCommandSender:
             return False
     
     async def send_command(self, command):
-        """Send a command to the hub"""
         if not self.connected or not self.client:
             print("Not connected to hub!")
             return False
