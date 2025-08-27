@@ -3,6 +3,10 @@ from bleak import BleakClient, BleakScanner
 from brick_classifier import BrickClassifier
 import time
 
+# ----------------------------
+# 1. Constants and Class Definition
+# ----------------------------
+
 # Pybricks Bluetooth UUIDs - using Pybricks-specific service
 PYBRICKS_SERVICE_UUID = "c5f50001-8280-46da-89f4-6d8051e4aeef"
 PYBRICKS_COMMAND_EVENT_CHAR_UUID = "c5f50002-8280-46da-89f4-6d8051e4aeef"
@@ -19,6 +23,10 @@ class BrickSortingController:
         self.classifier_model_path = classifier_model_path
         self.running = False
         
+
+# ----------------------------
+# 2. Hub Discovery and Connection
+# ----------------------------
 
     async def find_hub(self):
         print("Scanning for Pybricks hub...")
@@ -93,6 +101,10 @@ class BrickSortingController:
             return False
     
 
+# ----------------------------
+# 3. Classifier Management
+# ----------------------------
+
     def initialize_classifier(self):
         try:
             print("Initializing brick classifier...")
@@ -114,6 +126,10 @@ class BrickSortingController:
             print(f"Failed to start classifier: {e}")
             return False
     
+
+# ----------------------------
+# 4. Classification Processing
+# ----------------------------
 
     def parse_classification(self, classification):
         """
@@ -148,6 +164,10 @@ class BrickSortingController:
             return None, None, None, None
     
 
+# ----------------------------
+# 5. Command Communication
+# ----------------------------
+
     async def send_command(self, command):
         if not self.connected or not self.client:
             print("Not connected to hub!")
@@ -175,6 +195,10 @@ class BrickSortingController:
             print(f"Failed to send command '{command}': {e}")
             return False
     
+
+# ----------------------------
+# 6. Brick Processing Logic
+# ----------------------------
 
     def get_pusher_delays(self, brick_size):
         delays = {
@@ -282,6 +306,10 @@ class BrickSortingController:
         await self.send_command(command)
     
 
+# ----------------------------
+# 7. Automatic Sorting Loop
+# ----------------------------
+
     async def automatic_brick_sorting_loop(self, confidence_threshold=0.5, check_interval=1.0):
         print("AUTOMATIC BRICK SORTING ACTIVE")
         print("=" * 50)
@@ -357,8 +385,11 @@ class BrickSortingController:
         print("Automatic sorting stopped.")
     
 
+# ----------------------------
+# 8. Cleanup and Disconnect
+# ----------------------------
+
     async def disconnect(self):
-        """Disconnect from hub and cleanup classifier"""
         if self.client and self.connected:
             await self.client.disconnect()
             print("Disconnected from hub")
@@ -372,9 +403,17 @@ class BrickSortingController:
                 print(f"Error cleaning up classifier: {e}")
 
 
+# ----------------------------
+# 9. Utility Functions
+# ----------------------------
+
 def wait_for_user_input():
     input("Press ENTER after the hub light turns CYAN ")
 
+
+# ----------------------------
+# 10. Main Program Flow
+# ----------------------------
 
 async def main():
     print("AUTOMATIC BRICK SORTING CONTROLLER")
@@ -435,11 +474,11 @@ async def main():
         )
         
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
+        print(f"Unexpected error: {e}")
     
     finally:
         await controller.disconnect()
-        print("🔚 Program ended")
+        print("Program ended")
 
 
 if __name__ == "__main__":

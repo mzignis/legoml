@@ -11,6 +11,10 @@ import cv2
 from datetime import datetime
 import threading
 
+# ----------------------------
+# 1. SimpleBrickNet Model Definition
+# ----------------------------
+
 class SimpleBrickNet(nn.Module):
     def __init__(self, num_classes=13):
         super(SimpleBrickNet, self).__init__()
@@ -68,6 +72,10 @@ class SimpleBrickNet(nn.Module):
         return x
 
 
+# ----------------------------
+# 2. BrickClassifier - Main Class and Initialization
+# ----------------------------
+
 class BrickClassifier:
     def __init__(self, model_path, snapshot_dir="snapshots"):
         self.model_path = model_path
@@ -98,6 +106,10 @@ class BrickClassifier:
         self._setup_camera()
         
 
+# ----------------------------
+# 3. Directory and Model Setup Methods
+# ----------------------------
+
     def _setup_snapshot_directory(self):
         if not os.path.exists(self.snapshot_dir):
             os.makedirs(self.snapshot_dir)
@@ -126,6 +138,10 @@ class BrickClassifier:
         self.model.eval()
         
 
+# ----------------------------
+# 4. Camera Setup and Configuration
+# ----------------------------
+
     def _setup_camera(self):
         self.picam2 = Picamera2()
         config = self.picam2.create_preview_configuration(main={"format": "RGB888", "size": (1024, 768)})
@@ -141,6 +157,10 @@ class BrickClassifier:
         })
         self.picam2.start()
         
+
+# ----------------------------
+# 5. Snapshot Management Methods
+# ----------------------------
 
     def _cleanup_old_snapshots(self, max_files=6):
         try:
@@ -173,6 +193,10 @@ class BrickClassifier:
             print(f"Error saving snapshot: {e}")
             return None
         
+
+# ----------------------------
+# 6. Image Processing and Prediction Methods
+# ----------------------------
 
     def _crop_camera_image(self, pil_image):
         try:
@@ -246,6 +270,10 @@ class BrickClassifier:
             return top4_classes, top4_confidences
         
 
+# ----------------------------
+# 7. Continuous Capture Control Methods
+# ----------------------------
+
     def _continuous_capture_loop(self, prediction_interval):
         last_prediction_time = 0
         
@@ -293,6 +321,10 @@ class BrickClassifier:
             if self.capture_thread:
                 self.capture_thread.join(timeout=5) # Wait up to 5 seconds
         
+
+# ----------------------------
+# 8. Public Interface Methods
+# ----------------------------
 
     def get_latest_top4(self):
         with self._lock:
