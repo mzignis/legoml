@@ -2,6 +2,7 @@ import asyncio
 from hardware_controller import HardwareController
 from classifier_manager import ClassifierManager
 from sorting_strategy import SortingStrategy
+from dashboard_connector import DashboardConnector
 
 
 class SortingOrchestrator:
@@ -9,6 +10,7 @@ class SortingOrchestrator:
         self.hardware = HardwareController()
         self.classifier = ClassifierManager(classifier_model_path)
         self.strategy = SortingStrategy(self.hardware)
+        self.dashboard = DashboardConnector()
         self.running = False
 
 
@@ -32,6 +34,9 @@ class SortingOrchestrator:
             return False
         
         print("\nCONNECTION ESTABLISHED!")
+
+        # Start dashboard in separate process
+        self.dashboard.start_dashboard_process()
         return True
 
 
@@ -41,6 +46,7 @@ class SortingOrchestrator:
             print("Failed to start classifier. Exiting.")
             return False
         return True
+
 
     async def automatic_brick_sorting_loop(self, confidence_threshold=0.5, check_interval=1.0):
         print("AUTOMATIC BRICK SORTING ACTIVE")
@@ -66,6 +72,9 @@ class SortingOrchestrator:
                     classes, confidences = self.classifier.get_latest_predictions()
                     
                     if classes and confidences:
+                        # Non-blocking dashboard update
+                        self.dashboard.update_data(classes, confidences)
+
                         top_prediction = classes[0]
                         top_confidence = confidences[0]
                         
@@ -107,6 +116,8 @@ class SortingOrchestrator:
         except Exception as e:
             print(f"Error in automatic sorting loop: {e}")
             self.running = False
+        finally:
+            self.dashboard.stop()
         
         # Emergency stop if conveyor is still running
         if self.hardware.conveyor_running:

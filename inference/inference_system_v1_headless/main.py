@@ -10,8 +10,8 @@ async def main():
     print("=" * 50)
     
     # You can customize these parameters
-    CLASSIFIER_MODEL_PATH = "/home/candfpi4b/lego_pdm/brick_classifier_simple96.pth"
-    INTERVAL = 3.0  # How often classifier makes predictions & how often to check for new predictions(seconds)
+    CLASSIFIER_MODEL_PATH = "/home/candfpi4b/lego_pdm/misc/brick_classifier_simple96.pth"
+    INTERVAL = 5.0  # How often classifier makes predictions & how often to check for new predictions(seconds)
     CONFIDENCE_THRESHOLD = 0.5  # Minimum confidence to process a brick
     
     orchestrator = SortingOrchestrator(CLASSIFIER_MODEL_PATH)
