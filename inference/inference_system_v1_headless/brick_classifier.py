@@ -1,5 +1,4 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import transforms, models
 from picamera2 import Picamera2
@@ -11,69 +10,9 @@ import cv2
 from datetime import datetime
 import threading
 
-# ----------------------------
-# 1. SimpleBrickNet Model Definition
-# ----------------------------
-
-class SimpleBrickNet(nn.Module):
-    def __init__(self, num_classes=13):
-        super(SimpleBrickNet, self).__init__()
-
-        self.features = nn.Sequential(
-            # First block
-            nn.Conv2d(3, 32, kernel_size=3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(32, 32, kernel_size=3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2),
-            nn.Dropout2d(0.1),
-
-            # Second block
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(64, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2),
-            nn.Dropout2d(0.2),
-
-            # Third block
-            nn.Conv2d(64, 128, kernel_size=3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(128, 128, kernel_size=3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2),
-            nn.Dropout2d(0.3),
-
-            # Fourth block
-            nn.Conv2d(128, 256, kernel_size=3, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU(inplace=True),
-            nn.AdaptiveAvgPool2d((4, 4))
-        )
-
-        self.classifier = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(256 * 4 * 4, 256),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.3),
-            nn.Linear(256, 13)
-        )
-
-
-    def forward(self, x):
-        x = self.features(x)
-        x = self.classifier(x)
-        return x
-
 
 # ----------------------------
-# 2. BrickClassifier - Main Class and Initialization
+# 1. BrickClassifier - Main Class and Initialization
 # ----------------------------
 
 class BrickClassifier:
@@ -107,7 +46,7 @@ class BrickClassifier:
         
 
 # ----------------------------
-# 3. Directory and Model Setup Methods
+# 2. Directory and Model Setup Methods
 # ----------------------------
 
     def _setup_snapshot_directory(self):
@@ -116,30 +55,24 @@ class BrickClassifier:
         
 
     def _load_model(self):
-        checkpoint = torch.load(self.model_path, map_location=self.device)
-        if isinstance(checkpoint, dict):
-            if 'model_state_dict' in checkpoint:
-                model_state_dict = checkpoint['model_state_dict']
-            elif 'state_dict' in checkpoint:
-                model_state_dict = checkpoint['state_dict']
-            else:
-                model_state_dict = checkpoint
-        else:
-            model_state_dict = checkpoint
-        
-        self.model = SimpleBrickNet(num_classes=13)
-        
+        """Load TorchScript model from .pt file"""
         try:
-            self.model.load_state_dict(model_state_dict, strict=True)
-        except RuntimeError:
-            self.model.load_state_dict(model_state_dict, strict=False)
-        
-        self.model = self.model.to(self.device)
-        self.model.eval()
+            # Load the TorchScript model
+            self.model = torch.jit.load(self.model_path, map_location=self.device)
+            
+            # Move to correct device and set to eval mode
+            self.model = self.model.to(self.device)
+            self.model.eval()
+            
+            print(f"Successfully loaded TorchScript model from {self.model_path}")
+            
+        except Exception as e:
+            print(f"Error loading TorchScript model: {e}")
+            raise
         
 
 # ----------------------------
-# 4. Camera Setup and Configuration
+# 3. Camera Setup and Configuration
 # ----------------------------
 
     def _setup_camera(self):
@@ -159,7 +92,7 @@ class BrickClassifier:
         
 
 # ----------------------------
-# 5. Snapshot Management Methods
+# 4. Snapshot Management Methods
 # ----------------------------
 
     def _cleanup_old_snapshots(self, max_files=6):
@@ -195,7 +128,7 @@ class BrickClassifier:
         
 
 # ----------------------------
-# 6. Image Processing and Prediction Methods
+# 5. Image Processing and Prediction Methods
 # ----------------------------
 
     def _crop_camera_image(self, pil_image):
@@ -271,7 +204,7 @@ class BrickClassifier:
         
 
 # ----------------------------
-# 7. Continuous Capture Control Methods
+# 6. Continuous Capture Control Methods
 # ----------------------------
 
     def _continuous_capture_loop(self, prediction_interval):
@@ -323,7 +256,7 @@ class BrickClassifier:
         
 
 # ----------------------------
-# 8. Public Interface Methods
+# 7. Public Interface Methods
 # ----------------------------
 
     def get_latest_top4(self):
@@ -339,3 +272,24 @@ class BrickClassifier:
         self.stop_continuous_capture()
         if self.picam2:
             self.picam2.stop()
+
+
+# ----------------------------
+# 8. Example Usage
+# ----------------------------
+
+if __name__ == "__main__":
+    # Initialize with TorchScript model
+    classifier = BrickClassifier('brick_classifier_simple_torchscript.pt')
+    
+    try:
+        # Start continuous capture
+        classifier.start_continuous_capture(prediction_interval=2.0)
+        
+        # Run for some time or until interrupted
+        while True:
+            time.sleep(1)
+            
+    except KeyboardInterrupt:
+        print("\nStopping...")
+        classifier.cleanup()
