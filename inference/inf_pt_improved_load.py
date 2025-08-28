@@ -13,7 +13,7 @@ from datetime import datetime
 # 1. Load the TorchScript model
 # ----------------------------
 # Update this path to your TorchScript model location
-model_path = "/home/candfpi4b/lego_pdm/brick_classifier_simple_torchscript.pt"
+model_path = "/home/candfpi4b/lego_pdm/legoml/brick_classifier_simple_torchscript.pt"
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def load_torchscript_model(model_path):
