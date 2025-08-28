@@ -19,6 +19,124 @@ def load_real_time_data():
     return None
 
 
+def initialize_class_counters():
+    class_names = [
+        'white_1x3_good', 'white_2x2_good', 'white_2x4_good',
+        'blue_2x2_good', 'blue_2x6_good', 'blue_1x6_good',
+        'white_1x3_damaged', 'white_2x2_damaged', 'white_2x4_damaged',
+        'blue_2x2_damaged', 'blue_2x6_damaged', 'blue_1x6_damaged'
+    ]
+    
+    if 'class_counters' not in st.session_state:
+        st.session_state.class_counters = {class_name: 0 for class_name in class_names}
+    
+    return st.session_state.class_counters
+
+
+def update_class_counters(real_time_data):
+    if not real_time_data or 'classes' not in real_time_data or 'confidences' not in real_time_data:
+        return False, None
+    
+    classes = real_time_data['classes']
+    confidences = real_time_data['confidences']
+    
+    if len(classes) != len(confidences) or len(classes) == 0:
+        return False, None
+    
+    # Find the class with highest confidence
+    max_confidence_index = confidences.index(max(confidences))
+    predicted_class = classes[max_confidence_index]
+    max_confidence = confidences[max_confidence_index]
+    
+    # Check if this is a new prediction (avoid double counting)
+    current_timestamp = real_time_data.get('timestamp', '')
+    if 'last_processed_timestamp' not in st.session_state:
+        st.session_state.last_processed_timestamp = ''
+    
+    if current_timestamp != st.session_state.last_processed_timestamp:
+        # Initialize counters if needed
+        counters = initialize_class_counters()
+        
+        # Increment counter for the predicted class (if it's one of our 12 tracked classes)
+        if predicted_class in counters:
+            st.session_state.class_counters[predicted_class] += 1
+            st.session_state.last_processed_timestamp = current_timestamp
+            return True, {'class': predicted_class, 'confidence': max_confidence}
+    
+    return False, None
+
+
+def get_file_modification_time(filepath):
+    try:
+        return Path(filepath).stat().st_mtime
+    except:
+        return None
+
+
+def get_metric_values():
+    counters = initialize_class_counters()
+    
+    # Map counters to metric positions
+    undamaged_counts = [
+        counters['white_1x3_good'],    # W 1x3
+        counters['white_2x2_good'],    # W 2x2  
+        counters['white_2x4_good'],    # W 2x4
+        counters['blue_2x2_good'],     # B 2x2
+        counters['blue_1x6_good'],     # B 1x6
+        counters['blue_2x6_good']      # B 2x6
+    ]
+    
+    damaged_counts = [
+        counters['white_1x3_damaged'],  # W 1x3
+        counters['white_2x2_damaged'],  # W 2x2
+        counters['white_2x4_damaged'],  # W 2x4  
+        counters['blue_2x2_damaged'],   # B 2x2
+        counters['blue_1x6_damaged'],   # B 1x6
+        counters['blue_2x6_damaged']    # B 2x6
+    ]
+    
+    return undamaged_counts, damaged_counts
+
+
+def check_for_updates():
+    json_file = Path("dashboard_data.json")
+    snapshots_dir = Path("snapshots")
+    
+    # Initialize session state for tracking modification times
+    if 'last_json_mtime' not in st.session_state:
+        st.session_state.last_json_mtime = None
+    if 'last_snapshots_mtime' not in st.session_state:
+        st.session_state.last_snapshots_mtime = None
+    
+    updates_detected = False
+    
+    # Check JSON file
+    if json_file.exists():
+        current_json_mtime = get_file_modification_time(json_file)
+        if st.session_state.last_json_mtime != current_json_mtime:
+            st.session_state.last_json_mtime = current_json_mtime
+            updates_detected = True
+    
+    # Check snapshots directory
+    if snapshots_dir.exists():
+        try:
+            # Get the most recent image modification time
+            image_files = sorted(
+                glob.glob(str(snapshots_dir / "*.jpg")) + glob.glob(str(snapshots_dir / "*.JPG")),
+                key=lambda x: Path(x).stat().st_mtime,
+                reverse=True
+            )
+            if image_files:
+                current_snapshots_mtime = Path(image_files[0]).stat().st_mtime
+                if st.session_state.last_snapshots_mtime != current_snapshots_mtime:
+                    st.session_state.last_snapshots_mtime = current_snapshots_mtime
+                    updates_detected = True
+        except:
+            pass
+    
+    return updates_detected
+
+
 def load_latest_snapshots(limit=5):
     snapshots_dir = Path("snapshots")
     if snapshots_dir.exists():
@@ -31,22 +149,56 @@ def load_latest_snapshots(limit=5):
     return []
 
 
+def create_predictions_dataframe(real_time_data):
+    """Create DataFrame for predictions chart from real-time data"""
+    if real_time_data is None:
+        # Fallback data if no real-time data available
+        return pd.DataFrame({
+            'Top Categories': ['No Data', 'Available', 'Please Check', 'JSON File', 'Connection'],
+            'Confidence (%)': [20, 20, 20, 20, 20]
+        })
+    
+    try:
+        classes = real_time_data.get('classes', [])
+        confidences = real_time_data.get('confidences', [])
+        
+        # Ensure we have 4 classes and confidences
+        if len(classes) != 4 or len(confidences) != 4:
+            raise ValueError("Expected 4 classes and 4 confidences")
+        
+        # Convert confidences to percentages if they're in 0-1 range
+        if all(c <= 1.0 for c in confidences):
+            confidences_pct = [c * 100 for c in confidences]
+        else:
+            confidences_pct = confidences
+        
+        # Calculate "other" confidence
+        total_confidence = sum(confidences_pct)
+        other_confidence = max(0, 100 - total_confidence)  # Ensure non-negative
+        
+        # Create the DataFrame
+        categories = classes + ['Other']
+        confidence_values = confidences_pct + [other_confidence]
+        
+        return pd.DataFrame({
+            'Top Categories': categories,
+            'Confidence (%)': confidence_values
+        })
+    
+    except Exception as e:
+        st.error(f"Error processing real-time data: {e}")
+        # Return fallback data
+        return pd.DataFrame({
+            'Top Categories': ['Error', 'Loading', 'Data', 'Please', 'Retry'],
+            'Confidence (%)': [20, 20, 20, 20, 20]
+        })
+
+
 st.set_page_config(
     page_title="Image Dashboard",
     layout="wide",  # This makes the page use the full width
-    initial_sidebar_state="collapsed"  # Hide sidebar for cleaner look
+    initial_sidebar_state="collapsed"  # Start with sidebar collapsed but accessible
 )
-
-# Hide the Streamlit header/toolbar to maximize screen space
-hide_streamlit_style = """
-<style>
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
-    .stApp > header {visibility: hidden;}
-</style>
-"""
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 def amount_metric(state, num):
     with st.container():
@@ -171,127 +323,24 @@ def predictions(df):
             use_container_width=True
         )
 
+def extract_confidence_from_filename(filepath):
+    """Extract confidence value from filename ending with conf{X.XXX}.jpg"""
+    try:
+        filename = Path(filepath).name
+        # Look for pattern like "conf0.762.jpg"
+        if "conf" in filename and filename.endswith(".jpg"):
+            # Find the part after "conf" and before ".jpg"
+            conf_part = filename.split("conf")[-1].replace(".jpg", "")
+            confidence = float(conf_part)
+            return confidence * 100 if confidence <= 1.0 else confidence  # Convert to percentage if needed
+    except (ValueError, IndexError):
+        pass
+    return None
 
-def get_latest_images(image_folder, num_images=5):
 
-    all_images = []
-    all_images.extend(glob.glob(os.path.join(image_folder, '*.jpg')))
-    all_images.extend(glob.glob(os.path.join(image_folder, '*.JPG')))
-    
-    # Sort images by modification time (newest first)
-    # os.path.getmtime gets the last modification time of a file
-    all_images.sort(key=os.path.getmtime, reverse=True)
-    
-    # Return only the requested number of images
-    return all_images[:num_images]
-
-
-def display_image_grid(image_paths):
-
+def display_image_vertical_with_metrics(image_paths, confidence_scores=None, real_time_data=None):    
     if not image_paths:
-        st.warning("No JPG images found in the specified folder.")
-        return
-    
-    # Display current (most recent) image - resized to rectangular aspect ratio
-    if len(image_paths) > 0:
-        try:
-            current_image = Image.open(image_paths[0])
-            # Resize to slightly smaller rectangular aspect ratio for better fit
-            target_width = 400
-            target_height = 200  # Slightly shorter (was 225)
-            
-            # Resize while maintaining aspect ratio, then crop to target dimensions
-            resized_image = current_image.resize((target_width, target_height), Image.Resampling.LANCZOS)
-            st.image(resized_image, use_container_width=True)
-        except Exception as e:
-            st.error(f"Error loading current image: {e}")
-    
-    # Add a small spacer between current and grid images
-    st.markdown("<div style='margin: 5px 0;'></div>", unsafe_allow_html=True)
-    
-    # Display the previous 4 images in a 2x2 grid with minimal spacing
-    if len(image_paths) > 1:
-        # Create two rows of two columns each - minimal gaps
-        row1_col1, row1_col2 = st.columns(2, gap="small")
-        row2_col1, row2_col2 = st.columns(2, gap="small")
-        
-        # List of column objects for easy iteration
-        grid_columns = [row1_col1, row1_col2, row2_col1, row2_col2]
-        
-        # Display up to 4 previous images
-        for i in range(1, min(5, len(image_paths))):
-            try:
-                # Open and resize the image file to rectangular format
-                img = Image.open(image_paths[i])
-                
-                # Resize to smaller rectangular aspect ratio for grid - slightly shorter
-                target_width = 200
-                target_height = 100  # Reduced from 112 to save vertical space
-                
-                # Resize while maintaining quality
-                resized_img = img.resize((target_width, target_height), Image.Resampling.LANCZOS)
-                
-                # Calculate which column to use (0-3)
-                col_index = i - 1
-                
-                # Display in the appropriate column - use full container width for maximum space usage
-                with grid_columns[col_index]:
-                    st.image(resized_img, use_container_width=True)  # Fill the container completely
-            except Exception as e:
-                with grid_columns[col_index]:
-                    st.error(f"Error loading image {i+1}: {e}")
-
-def display_image_vertical(image_paths):
-
-    if not image_paths:
-        st.warning("No JPG images found in the specified folder.")
-        return
-    
-    # Define fixed rectangular sizes for each image (width, height) - keeping original proportions
-    # Each subsequent image will be smaller but maintain the 2:1 ratio from original code
-    image_sizes = [
-        (400, 200),   # Most recent image (same as original "current" image)
-        (320, 160),   # Second image (80% of original)
-        (256, 128),   # Third image (64% of original)  
-        (200, 100),   # Fourth image (same as original "grid" images)
-        (160, 80)     # Fifth image (80% of grid size)
-    ]
-    
-    # custom CSS for left alignment
-    st.markdown("""
-    <style>
-    .left-aligned-image {
-        display: flex;
-        justify-content: flex-start;
-        margin-bottom: 8px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # Display all images vertically with decreasing sizes
-    for i, image_path in enumerate(image_paths[:5]):  # Limit to 5 images
-        try:
-            # Open the image
-            current_image = Image.open(image_path)
-            
-            # Get the fixed size for this image
-            target_width, target_height = image_sizes[i]
-            
-            # Resize to fixed rectangular dimensions (same as original code)
-            resized_image = current_image.resize((target_width, target_height), Image.Resampling.LANCZOS)
-            
-            # Display with left alignment using HTML container
-            st.markdown(f'<div class="left-aligned-image">', unsafe_allow_html=True)
-            st.image(resized_image, width=target_width)
-            st.markdown('</div>', unsafe_allow_html=True)
-                
-        except Exception as e:
-            st.error(f"Error loading image {i+1}: {e}")
-
-def display_image_vertical_with_metrics(image_paths, confidence_scores=None):
-
-    if not image_paths:
-        st.warning("No JPG images found in the specified folder.")
+        st.warning("No JPG images found in the snapshots folder.")
         return
     
     # Define fixed rectangular sizes for each image (width, height) - more gradual shrinking
@@ -303,9 +352,15 @@ def display_image_vertical_with_metrics(image_paths, confidence_scores=None):
         (200, 100)    # Fifth image (same as old fourth image)
     ]
     
-    # Default confidence scores if none provided
-    if confidence_scores is None:
-        confidence_scores = [0.92, 0.87, 0.81, 0.75, 0.68, 0.63]  # Deltas: +0.05, +0.06, +0.06, +0.07, +0.05  # Deltas: None, -0.05, -0.06, -0.06, -0.07
+    # Extract confidence scores from filenames
+    confidence_scores = []
+    for image_path in image_paths:
+        conf = extract_confidence_from_filename(image_path)
+        if conf is not None:
+            confidence_scores.append(conf)
+        else:
+            # Fallback confidence if filename doesn't contain confidence
+            confidence_scores.append(50.0)  # Default 50%
     
     # Add custom CSS for the image-metric containers
     st.markdown("""
@@ -355,7 +410,7 @@ def display_image_vertical_with_metrics(image_paths, confidence_scores=None):
                 
                 with metric_col:
                     # Display the metric
-                    confidence = confidence_scores[i] if i < len(confidence_scores) else 0.5
+                    confidence = confidence_scores[i] if i < len(confidence_scores) else 50
                     
                     # Calculate delta as change to next confidence
                     if i+1 >= len(confidence_scores):  # No next confidence available
@@ -366,8 +421,8 @@ def display_image_vertical_with_metrics(image_paths, confidence_scores=None):
                     
                     st.metric(
                         label="Confidence",
-                        value=f"{confidence:.2f}",
-                        delta=f"{delta:.3f}" if delta is not None else None
+                        value=f"{confidence:.1f}%",
+                        delta=f"{delta:.1f}%" if delta is not None else None
                     )
                 
                 with img_col:
@@ -383,31 +438,114 @@ def display_image_vertical_with_metrics(image_paths, confidence_scores=None):
 def main():
     st.title("Image Analysis Dashboard")
     
-    # Configuration section in the sidebar (you can expand this)
+    # Initialize auto-refresh settings in session state
+    if 'auto_refresh' not in st.session_state:
+        st.session_state.auto_refresh = True
+    if 'refresh_interval' not in st.session_state:
+        st.session_state.refresh_interval = 5  # seconds
+    
+    # Initialize class counters
+    initialize_class_counters()
+    
+    # Load real-time data and latest snapshots
+    real_time_data = load_real_time_data()
+    latest_images = load_latest_snapshots()
+    
+    # Update class counters if new data detected
+    counter_updated = False
+    detection_info = None
+    if real_time_data:
+        counter_updated, detection_info = update_class_counters(real_time_data)
+    
+    # Configuration section in the sidebar
     with st.sidebar:
         st.header("Settings")
         
-        image_folder = st.text_input(
-            "Image Folder Path", 
-            value=r"C:\Users\atok\OneDrive - C&F S.A\Desktop\dashboard\images", 
-            help="Enter the path to the folder containing your JPG images"
-        )
+        # Auto-refresh controls
+        st.subheader("Auto-Refresh")
+        auto_refresh = st.checkbox("Enable Auto-Refresh", value=st.session_state.auto_refresh)
+        st.session_state.auto_refresh = auto_refresh
         
-        # Button to refresh images
-        if st.button("Refresh Images"):
+        if auto_refresh:
+            refresh_interval = st.slider(
+                "Refresh Interval (seconds)", 
+                min_value=1, 
+                max_value=30, 
+                value=st.session_state.refresh_interval,
+                step=1
+            )
+            st.session_state.refresh_interval = refresh_interval
+        
+        # Display data status
+        if real_time_data:
+            st.success("Real-time data loaded")
+            if 'timestamp' in real_time_data:
+                st.text(f"Data timestamp: {real_time_data['timestamp']}")
+            if counter_updated and detection_info:
+                st.success("Class counter updated!")
+                predicted_class = detection_info['class']
+                confidence = detection_info['confidence']
+                # Convert confidence to percentage if needed
+                if confidence <= 1.0:
+                    confidence_pct = confidence * 100
+                else:
+                    confidence_pct = confidence
+                st.info(f"Detected: **{predicted_class}** ({confidence_pct:.1f}%)")
+        else:
+            st.error("No real-time data")
+            st.text("Check dashboard_data.json")
+        
+        # Reset counters button
+        if st.button("Reset All Counters"):
+            for key in st.session_state.class_counters:
+                st.session_state.class_counters[key] = 0
+            st.success("All counters reset to 0!")
+            st.rerun()
+        
+        # Manual refresh button
+        if st.button("Manual Refresh"):
             st.rerun()
         
         # Display last update time
         st.text(f"Last updated: {time.strftime('%H:%M:%S')}")
+        
+        # Debug: Show current counters
+        if st.checkbox("Show Class Counters"):
+            st.subheader("Current Counts:")
+            counters = st.session_state.class_counters
+            total_detections = sum(counters.values())
+            st.metric("Total Detections", total_detections)
+            
+            for class_name, count in counters.items():
+                if count > 0:  # Only show non-zero counts
+                    st.text(f"{class_name}: {count}")
+        
+        # Debug: Show raw data if available
+        if st.checkbox("Show Raw Data") and real_time_data:
+            st.json(real_time_data)
+            
+        # Debug: Show extracted confidences from image filenames
+        if st.checkbox("Show Image Confidences") and latest_images:
+            st.subheader("Extracted Confidences:")
+            for i, img_path in enumerate(latest_images[:5]):
+                filename = Path(img_path).name
+                conf = extract_confidence_from_filename(img_path)
+                if conf is not None:
+                    st.text(f"{filename}: {conf:.1f}%")
+                else:
+                    st.text(f"{filename}: No confidence found")
     
-    if not os.path.exists(image_folder):
-        st.error(f"Folder '{image_folder}' does not exist. Please create it or specify a different path.")
-        st.info("Create an 'images' folder in your project directory and add some JPG files to get started.")
+    # Check if snapshots directory exists
+    if not Path("snapshots").exists():
+        st.error("'snapshots' folder does not exist. Please create it and add JPG images.")
+        st.info("Create a 'snapshots' folder in your project directory and add JPG files to get started.")
         return
     
-    latest_images = get_latest_images(image_folder)
+    if not latest_images:
+        st.warning("No images found in the 'snapshots' folder. Please add some JPG images.")
+        return
     
-    # Display the images
+    # Display the dashboard
     left_col, right_col = st.columns([1, 1])  
     
     with left_col:
@@ -419,22 +557,21 @@ def main():
         st.header("Analytics & Metrics")
         st.markdown("*Real-time analysis and performance data*")
         
-        df = pd.DataFrame(
-            {
-            'Top Categories': ['A', 'B', 'C', 'D', 'E'],
-            'Confidence (%)': [25.5, 18.2, 33.1, 12.7, 10.5]
-            }
-        )
-        predictions(df)
+        # Create predictions chart from real-time data
+        predictions_df = create_predictions_dataframe(real_time_data)
+        predictions(predictions_df)
+        
         inner_left_col, inner_right_col = st.columns(2)
 
+        # Get current counter values
+        undamaged_counts, damaged_counts = get_metric_values()
+
         with inner_left_col:
-            sample_numbers1 = [10, 25, 33, 18, 42, 67]
-            amount_metric("Undamaged", sample_numbers1)
+            amount_metric("Undamaged", undamaged_counts)
 
         with inner_right_col:
-            sample_numbers2 = [15, 30, 28, 22, 38, 55]
-            amount_metric("Damaged", sample_numbers2)
+            amount_metric("Damaged", damaged_counts)
+            
         parameters = {
             'A': '25.5%',
             'B': '$18.2K',
@@ -444,10 +581,43 @@ def main():
         }
         parameter_metrics(parameters, "Parameter Metrics")
     
-    # Auto-refresh every 30 seconds (optional)
-    # Uncomment the next line if you want automatic refresh
-    # time.sleep(30)
-    # st.rerun()
+    # Auto-refresh functionality
+    if st.session_state.auto_refresh:
+        # Check for file updates every time the app runs
+        updates_detected = check_for_updates()
+        
+        if updates_detected or counter_updated:
+            if counter_updated:
+                st.success("New detection processed! Counter updated.")
+            else:
+                st.success("File changes detected! Dashboard updated.")
+        
+        # Show auto-refresh status
+        last_update_time = st.session_state.get('last_json_mtime', None)
+        if last_update_time:
+            formatted_time = time.strftime('%H:%M:%S', time.localtime(last_update_time))
+            st.caption(f"Auto-refresh active • Last update: {formatted_time}")
+        else:
+            st.caption("Auto-refresh active • Waiting for data...")
+        
+        # Show auto-refresh indicator
+        st.markdown(f"""
+        <div style="position: fixed; bottom: 10px; right: 10px; z-index: 999; 
+                    background: rgba(34, 139, 34, 0.9); color: white; 
+                    padding: 8px 12px; border-radius: 20px; font-size: 12px;">
+            Monitoring files every {st.session_state.refresh_interval}s
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Simple page refresh for development/demo purposes
+        # In production, consider using file watchers, websockets, or other real-time mechanisms
+        if st.session_state.refresh_interval <= 10:  # Only for short intervals
+            st.markdown(f"""
+            <meta http-equiv="refresh" content="{st.session_state.refresh_interval}">
+            """, unsafe_allow_html=True)
+    
+    else:
+        st.caption("Auto-refresh disabled • Use manual refresh to update")
 
 if __name__ == "__main__":
     main()
