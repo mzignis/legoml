@@ -1,0 +1,16 @@
+{
+  "dataset_path": "dataset_split",
+  "batch_size": 32,
+  "num_epochs": 8,
+  "learning_rate": 0.0005,
+  "patience": 15,
+  "use_class_weights": true,
+  "freeze_backbone": true,
+  "load_checkpoint": null,
+  "save_torchscript": true,
+  "description": {
+    "freeze_backbone": "True for frozen training, False for unfrozen fine-tuning",
+    "load_checkpoint": "Path to checkpoint for continued training, or null for fresh start",
+    "save_torchscript": "Enable TorchScript saving for easy deployment"
+  }
+}

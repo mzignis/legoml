@@ -1,0 +1,26 @@
+{
+  "dataset_config": {
+    "raw_data_dir": "brick_dataset/raw",
+    "output_dir": "dataset_split",
+    "random_seed": 42
+  },
+  "split_ratios": {
+    "train_ratio": 0.6,
+    "val_ratio": 0.3,
+    "test_ratio": 0.1
+  },
+  "cropping_config": {
+    "enable_cropping": true,
+    "crop_params": {
+      "left": 164,
+      "top": 164,
+      "right": 164,
+      "bottom": 164
+    }
+  },
+  "processing_options": {
+    "supported_formats": [".jpg", ".jpeg", ".png", ".bmp", ".tiff"],
+    "debug_info": true,
+    "show_first_crops": 5
+  }
+}
