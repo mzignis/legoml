@@ -1,0 +1,34 @@
+# Requirements for Windows Development Environment
+# For testing and development before deployment to Raspberry Pi
+
+# Computer vision and image processing
+opencv-python>=4.5.0
+Pillow>=8.0.0
+
+# Deep learning and ML (PyTorch)
+torch>=1.11.0
+torchvision>=0.12.0
+
+# Image augmentation for ML training
+albumentations>=1.3.0
+
+# Data handling and analysis
+pandas>=1.3.0
+numpy>=1.21.0
+
+# Web dashboard with Streamlit
+streamlit>=1.25.0
+
+# Machine learning metrics and visualization
+scikit-learn>=1.0.0
+matplotlib>=3.5.0
+seaborn>=0.11.0
+
+# System and file operations (built-in but listed for completeness)
+# os, json, datetime, time, random, glob, shutil
+
+# Windows-specific notes:
+# - No picamera2 dependency (uses standard webcam via OpenCV)
+# - No Bluetooth/bleak dependency for hub communication during development
+# - Includes additional ML libraries for training (scikit-learn, matplotlib, seaborn)
+# - All scripts should work on Windows for development/testing
