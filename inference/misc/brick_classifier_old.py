@@ -38,11 +38,6 @@ class BrickClassifier:
         self.current_top4_confidences = []
         self._lock = threading.Lock() # Thread safety
         
-        # Hybrid saving state variables
-        self.last_saved_class = None
-        self.last_save_time = 0
-        self.min_same_class_interval = 2.0  # Default, will be updated by start_continuous_capture
-        
         # Initialize
         self._setup_snapshot_directory()
         self._load_model()
@@ -129,24 +124,6 @@ class BrickClassifier:
         except Exception as e:
             print(f"Error saving snapshot: {e}")
             return None
-
-    def _should_save_snapshot(self, predicted_class):
-        """
-        Hybrid saving logic:
-        - Always save when top prediction class changes
-        - For same class: only save if min_same_class_interval has passed since last save
-        """
-        current_time = time.time()
-        
-        # Always save if this is the first prediction or class has changed
-        if self.last_saved_class is None or predicted_class != self.last_saved_class:
-            return True
-        
-        # Same class: only save if enough time has passed
-        if current_time - self.last_save_time >= self.min_same_class_interval:
-            return True
-        
-        return False
         
 
 # ----------------------------
@@ -217,17 +194,10 @@ class BrickClassifier:
             for i, (class_name, confidence) in enumerate(zip(top4_classes, top4_confidences), 1):
                 print(f" {i}. {class_name} (confidence: {confidence:.3f})")
             
-            # Hybrid saving logic - only save when conditions are met
-            top_class = top4_classes[0]
-            if self._should_save_snapshot(top_class):
-                saved_path = self._save_cropped_snapshot(cropped_pil_image, top_class, top4_confidences[0])
-                if saved_path:
-                    print(f"Snapshot saved (class: {top_class})")
-                    # Update tracking variables
-                    self.last_saved_class = top_class
-                    self.last_save_time = time.time()
-            else:
-                print(f"Snapshot skipped (same class '{top_class}' within {self.min_same_class_interval}s interval)")
+            # Save snapshot using top prediction
+            saved_path = self._save_cropped_snapshot(cropped_pil_image, top4_classes[0], top4_confidences[0])
+            if saved_path:
+                print("Snapshot saved")
             
             return top4_classes, top4_confidences
         
@@ -259,22 +229,18 @@ class BrickClassifier:
         print("Continuous capture stopped")
         
 
-    def start_continuous_capture(self, same_prediction_interval=2.0, check_interval=1.0):
+    def start_continuous_capture(self, prediction_interval=2.0):
         if self.is_running:
             print("Continuous capture is already running")
             return
         
-        # Store the interval as the minimum time between saves of the same class
-        self.min_same_class_interval = same_prediction_interval
-        
         self.is_running = True
-        print(f"Starting continuous capture with {same_prediction_interval}s minimum interval between same class saves...")
+        print(f"Starting continuous capture with {prediction_interval}s between predictions...")
         
         # Start capture in background thread
-        # Use a faster prediction rate (0.5s) but save based on the hybrid logic
         self.capture_thread = threading.Thread(
             target=self._continuous_capture_loop,
-            args=(check_interval,),
+            args=(prediction_interval,),
             daemon=True
         )
         self.capture_thread.start()

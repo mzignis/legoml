@@ -17,10 +17,10 @@ class ClassifierManager:
             return False
 
 
-    def start_classifier(self, prediction_interval=3.0):
+    def start_classifier(self, same_prediction_interval=5.0, check_interval=1.0):
         try:
-            print(f"Starting continuous capture with {prediction_interval}s intervals...")
-            self.classifier.start_continuous_capture(prediction_interval=prediction_interval)
+            print(f"Starting continuous capture with {check_interval}s intervals...")
+            self.classifier.start_continuous_capture(same_prediction_interval=same_prediction_interval, check_interval=check_interval)
             print("Classifier capture started!")
             return True
         except Exception as e:

@@ -1,4 +1,5 @@
 import asyncio
+import time
 from hardware_controller import HardwareController
 from classifier_manager import ClassifierManager
 from sorting_strategy import SortingStrategy
@@ -12,6 +13,9 @@ class SortingOrchestrator:
         self.strategy = SortingStrategy(self.hardware)
         self.dashboard = DashboardConnector()
         self.running = False
+        self.brick_queue = []  # Queue of pending brick processing tasks
+        self.conveyor_stop_time = 0  # When the conveyor should stop
+        self.conveyor_task = None  # Task managing conveyor operations
 
 
     async def initialize_system(self):
@@ -40,34 +44,38 @@ class SortingOrchestrator:
         return True
 
 
-    async def start_classifier_system(self, prediction_interval):
+    async def start_classifier_system(self, same_prediction_interval, check_interval):
         print("\nStep 3: Starting brick classifier...")
-        if not self.classifier.start_classifier(prediction_interval):
+        if not self.classifier.start_classifier(same_prediction_interval, check_interval):
             print("Failed to start classifier. Exiting.")
             return False
         return True
 
 
-    async def automatic_brick_sorting_loop(self, confidence_threshold=0.5, check_interval=1.0):
+    async def automatic_brick_sorting_loop(self, confidence_threshold=0.5, check_interval=1.0, min_processing_interval=None):
+        # Use check_interval as min_processing_interval if not specified
+        if min_processing_interval is None:
+            min_processing_interval = check_interval
+            
         print("AUTOMATIC BRICK SORTING ACTIVE")
         print("=" * 50)
         print(f"Confidence threshold: {confidence_threshold}")
         print(f"Check interval: {check_interval}s")
+        print(f"Min processing interval for same class: {min_processing_interval}s")
         print("The system will automatically detect and sort bricks!")
         print("Press Ctrl+C to stop the system")
         print()
         
         self.running = True
-        last_processed_prediction = None
+        last_processed_class = None
+        last_processing_time = 0
+        
+        # Start the conveyor management task
+        self.conveyor_task = asyncio.create_task(self.manage_conveyor_and_pushers())
         
         try:
             while self.running:
-                # Skip if conveyor is currently running
-                if self.hardware.conveyor_running:
-                    await asyncio.sleep(0.1)
-                    continue
-                
-                # Get latest predictions from classifier
+                # Get latest predictions from classifier (NO LONGER BLOCKED BY CONVEYOR STATE)
                 try:
                     classes, confidences = self.classifier.get_latest_predictions()
                     
@@ -78,9 +86,25 @@ class SortingOrchestrator:
                         top_prediction = classes[0]
                         top_confidence = confidences[0]
                         
-                        # Only process if confidence is above threshold and it's a new prediction
-                        if top_confidence >= confidence_threshold and top_prediction != last_processed_prediction:
-                            print(f"New detection: {top_prediction} (confidence: {top_confidence:.3f})")
+                        # Check if we should process this prediction
+                        should_process = False
+                        current_time = time.time()
+                        
+                        if top_confidence >= confidence_threshold:
+                            # Always process if class changed or it's the first prediction
+                            if last_processed_class is None or top_prediction != last_processed_class:
+                                should_process = True
+                                reason = "new class detected" if last_processed_class else "first detection"
+                            # For same class: only process if enough time has passed
+                            elif current_time - last_processing_time >= min_processing_interval:
+                                should_process = True
+                                reason = f"same class after {min_processing_interval}s interval"
+                            else:
+                                time_remaining = min_processing_interval - (current_time - last_processing_time)
+                                print(f"Same class '{top_prediction}' - waiting {time_remaining:.1f}s more before processing")
+                        
+                        if should_process:
+                            print(f"Queueing brick: {top_prediction} (confidence: {top_confidence:.3f}) - {reason}")
                             
                             # Parse the classification
                             brick_type, brick_size, color = self.classifier.parse_classification(top_prediction)
@@ -88,11 +112,12 @@ class SortingOrchestrator:
                             if brick_type:
                                 print(f"Parsed: Type={brick_type}, Size={brick_size}, Color={color}")
                                 
-                                # Process the brick using strategy
-                                await self.strategy.process_brick(brick_type, brick_size)
+                                # QUEUE the brick instead of processing immediately
+                                await self.queue_brick(brick_type, brick_size, current_time)
                                 
-                                # Update last processed to avoid reprocessing same prediction
-                                last_processed_prediction = top_prediction
+                                # Update tracking variables
+                                last_processed_class = top_prediction
+                                last_processing_time = current_time
                                 
                             else:
                                 print(f"Could not parse classification: {top_prediction}")
@@ -117,6 +142,14 @@ class SortingOrchestrator:
             print(f"Error in automatic sorting loop: {e}")
             self.running = False
         finally:
+            # Cancel conveyor management task
+            if self.conveyor_task:
+                self.conveyor_task.cancel()
+                try:
+                    await self.conveyor_task
+                except asyncio.CancelledError:
+                    pass
+            
             self.dashboard.stop()
         
         # Emergency stop if conveyor is still running
@@ -125,6 +158,105 @@ class SortingOrchestrator:
             await self.hardware.send_command('9')
         
         print("Automatic sorting stopped.")
+
+
+    async def queue_brick(self, brick_type, brick_size, detection_time):
+        """Queue a brick for processing with immediate timer start"""
+        brick_info = {
+            'type': brick_type,
+            'size': brick_size,
+            'detection_time': detection_time,
+            'processed': False
+        }
+        
+        self.brick_queue.append(brick_info)
+        print(f"Brick queued: {brick_type} {brick_size or 'unknown'} (queue length: {len(self.brick_queue)})")
+        
+        # Calculate when this brick's processing will complete
+        delays = self.strategy.get_pusher_delays(brick_size)
+        if brick_type == "damaged":
+            processing_end_time = detection_time + max(delays['pusher1'], delays['pusher2']) + 0.5
+        else:  # undamaged
+            processing_end_time = detection_time + 3.0
+        
+        # Update conveyor stop time to accommodate this brick
+        if processing_end_time > self.conveyor_stop_time:
+            self.conveyor_stop_time = processing_end_time
+            print(f"Conveyor stop time updated to: {self.conveyor_stop_time:.1f}")
+
+
+    async def manage_conveyor_and_pushers(self):
+        """Manage conveyor operations and pusher timing for all queued bricks"""
+        conveyor_started = False
+        
+        while self.running:
+            current_time = time.time()
+            
+            # Check if we have queued bricks and need to start conveyor
+            if self.brick_queue and not conveyor_started:
+                print("Starting conveyor for queued bricks...")
+                await self.hardware.send_command('8')
+                conveyor_started = True
+            
+            # Process any bricks whose pusher timing has arrived
+            for brick_info in self.brick_queue:
+                if not brick_info['processed']:
+                    await self.check_and_fire_pushers(brick_info, current_time)
+            
+            # Check if we should stop the conveyor
+            if conveyor_started and current_time >= self.conveyor_stop_time and self.brick_queue:
+                print("Stopping conveyor - all queued bricks processed...")
+                await self.hardware.send_command('9')
+                conveyor_started = False
+                
+                # Clear processed bricks from queue
+                self.brick_queue = [brick for brick in self.brick_queue if not brick['processed']]
+                
+                # Reset stop time
+                self.conveyor_stop_time = 0
+            
+            await asyncio.sleep(0.1)  # Check frequently for precise timing
+
+
+    async def check_and_fire_pushers(self, brick_info, current_time):
+        """Check if it's time to fire pushers for a specific brick"""
+        if brick_info['processed']:
+            return
+        
+        detection_time = brick_info['detection_time']
+        brick_type = brick_info['type']
+        brick_size = brick_info['size']
+        
+        if brick_type == "damaged":
+            delays = self.strategy.get_pusher_delays(brick_size)
+            pusher1_time = detection_time + delays['pusher1']
+            pusher2_time = detection_time + delays['pusher2']
+            
+            # Check pusher 1
+            if not brick_info.get('pusher1_fired', False) and current_time >= pusher1_time:
+                size_display = brick_size if brick_size else "unknown size"
+                print(f"Firing pusher 1 for {brick_type} {size_display} brick")
+                await self.hardware.send_command('1')
+                brick_info['pusher1_fired'] = True
+            
+            # Check pusher 2
+            if not brick_info.get('pusher2_fired', False) and current_time >= pusher2_time:
+                size_display = brick_size if brick_size else "unknown size"
+                print(f"Firing pusher 2 for {brick_type} {size_display} brick")
+                await self.hardware.send_command('4')
+                brick_info['pusher2_fired'] = True
+            
+            # Mark as processed when both pushers have fired
+            if brick_info.get('pusher1_fired', False) and brick_info.get('pusher2_fired', False):
+                brick_info['processed'] = True
+                print(f"Damaged {size_display} brick processing complete!")
+        
+        elif brick_type == "undamaged":
+            # For undamaged bricks, just mark as processed after 3 seconds
+            pass_through_time = detection_time + 3.0
+            if current_time >= pass_through_time:
+                brick_info['processed'] = True
+                print(f"Undamaged brick passed through successfully!")
 
 
     async def shutdown_system(self):

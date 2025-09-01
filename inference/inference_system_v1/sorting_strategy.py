@@ -6,6 +6,7 @@ class SortingStrategy:
 
 
     def get_pusher_delays(self, brick_size):
+        """Get pusher timing delays for different brick sizes"""
         delays = {
             '2x4': {'pusher1': 2.15, 'pusher2': 3.5},
             '2x2': {'pusher1': 2.0, 'pusher2': 3.5},
@@ -18,63 +19,59 @@ class SortingStrategy:
 
 
     async def process_brick(self, brick_type, brick_size=None):
+        """
+        DEPRECATED: This method is kept for backward compatibility but is no longer used
+        in the new queueing system. The orchestrator now handles all timing and conveyor management.
+        """
+        print(f"WARNING: process_brick() called but should not be used with queueing system")
+        print(f"Brick info: {brick_type} {brick_size}")
+
+
+    def get_processing_duration(self, brick_type, brick_size=None):
+        """Get the total processing duration for a brick type"""
         if brick_type == "damaged":
-            # Handle both sized and unsized damaged bricks
-            size_display = brick_size if brick_size else "unknown size"
-            print(f"\n--- Processing damaged {size_display} brick ---")
-            
-            # Get delays for this brick size (will use defaults if size is None)
             delays = self.get_pusher_delays(brick_size)
-            pusher1_delay = delays['pusher1']
-            pusher2_delay = delays['pusher2']
-            
-            print(f"Brick size: {size_display}")
-            print(f"Pusher 1 delay: {pusher1_delay}s")
-            print(f"Pusher 2 delay: {pusher2_delay}s")
-            print("Activating pushers...")
-            
-            # Start conveyor belt
-            print("Starting conveyor belt...")
-            await self.hardware.send_command('8')
-            
-            # Create tasks for delayed pusher activation
-            pusher1_task = asyncio.create_task(self.delayed_pusher_activation('1', pusher1_delay, f"Front pusher ({size_display})"))
-            pusher2_task = asyncio.create_task(self.delayed_pusher_activation('4', pusher2_delay, f"Second pusher ({size_display})"))
-            
-            # Calculate total runtime (max delay + small buffer for pusher action)
-            total_runtime = max(pusher1_delay, pusher2_delay) + 0.5
-            
-            # Wait for all operations to complete
-            await asyncio.gather(pusher1_task, pusher2_task)
-            
-            # Ensure minimum runtime before stopping conveyor
-            await asyncio.sleep(max(0, total_runtime - max(pusher1_delay, pusher2_delay)))
-            
-            print("Stopping conveyor belt...")
-            await self.hardware.send_command('9')
-            
-            print(f"Damaged {size_display} brick successfully removed from line!")
-
+            # Total time is max pusher delay + small buffer for pusher action
+            return max(delays['pusher1'], delays['pusher2']) + 0.5
         elif brick_type == "undamaged":
-            print("\n--- Processing undamaged brick ---")
-            print("Undamaged brick - letting it pass through...")
-            
-            # Start conveyor belt
-            print("Starting conveyor belt...")
-            await self.hardware.send_command('8')
-            
-            # Wait 3 seconds for brick to pass through
-            await asyncio.sleep(3.0)
-            
-            print("Stopping conveyor belt...")
-            await self.hardware.send_command('9')
-            
-            print("Undamaged brick passed through successfully!")
+            # Undamaged bricks just pass through
+            return 3.0
+        else:
+            return 3.0  # Default fallback
+
+
+    async def fire_pusher(self, pusher_number, brick_info):
+        """Fire a specific pusher for a brick"""
+        size_display = brick_info['size'] if brick_info['size'] else "unknown size"
+        brick_type = brick_info['type']
         
-        print("--- Brick processing complete ---\n")
+        if pusher_number == 1:
+            print(f"Activating front pusher for {brick_type} {size_display} brick")
+            await self.hardware.send_command('1')
+        elif pusher_number == 2:
+            print(f"Activating second pusher for {brick_type} {size_display} brick")
+            await self.hardware.send_command('4')
+        else:
+            print(f"Unknown pusher number: {pusher_number}")
 
 
-    async def delayed_pusher_activation(self, command, delay, pusher_name):
-        await asyncio.sleep(delay)
-        print(f"Activating {pusher_name} (Command {command}) after {delay}s delay")
-        await self.hardware.send_command(command)
+    def calculate_pusher_times(self, brick_info, detection_time):
+        """Calculate when pushers should fire for a given brick"""
+        brick_type = brick_info['type']
+        brick_size = brick_info['size']
+        
+        if brick_type == "damaged":
+            delays = self.get_pusher_delays(brick_size)
+            return {
+                'pusher1_time': detection_time + delays['pusher1'],
+                'pusher2_time': detection_time + delays['pusher2']
+            }
+        else:
+            # Undamaged bricks don't need pushers
+            return {}
+
+
+    def get_brick_description(self, brick_type, brick_size=None):
+        """Get a human-readable description of a brick"""
+        size_display = brick_size if brick_size else "unknown size"
+        return f"{brick_type} {size_display} brick"

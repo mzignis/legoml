@@ -1,11 +1,12 @@
 import streamlit as st
-import pandas as pd
 import os
 import glob
 from PIL import Image
 import time
 import json
 from pathlib import Path
+import plotly.express as px
+import plotly.graph_objects as go
 
 
 def load_real_time_data():
@@ -149,14 +150,14 @@ def load_latest_snapshots(limit=5):
     return []
 
 
-def create_predictions_dataframe(real_time_data):
-    """Create DataFrame for predictions chart from real-time data"""
+def create_predictions_data(real_time_data):
+    """Create dictionary for predictions chart from real-time data"""
     if real_time_data is None:
         # Fallback data if no real-time data available
-        return pd.DataFrame({
-            'Top Categories': ['No Data', 'Available', 'Please Check', 'JSON File', 'Connection'],
-            'Confidence (%)': [20, 20, 20, 20, 20]
-        })
+        return {
+            'categories': ['No Data', 'Available', 'Please Check', 'JSON File', 'Connection'],
+            'confidences': [20, 20, 20, 20, 20]
+        }
     
     try:
         classes = real_time_data.get('classes', [])
@@ -176,22 +177,22 @@ def create_predictions_dataframe(real_time_data):
         total_confidence = sum(confidences_pct)
         other_confidence = max(0, 100 - total_confidence)  # Ensure non-negative
         
-        # Create the DataFrame
+        # Create the data dictionary
         categories = classes + ['Other']
         confidence_values = confidences_pct + [other_confidence]
         
-        return pd.DataFrame({
-            'Top Categories': categories,
-            'Confidence (%)': confidence_values
-        })
+        return {
+            'categories': categories,
+            'confidences': confidence_values
+        }
     
     except Exception as e:
         st.error(f"Error processing real-time data: {e}")
         # Return fallback data
-        return pd.DataFrame({
-            'Top Categories': ['Error', 'Loading', 'Data', 'Please', 'Retry'],
-            'Confidence (%)': [20, 20, 20, 20, 20]
-        })
+        return {
+            'categories': ['Error', 'Loading', 'Data', 'Please', 'Retry'],
+            'confidences': [20, 20, 20, 20, 20]
+        }
 
 
 st.set_page_config(
@@ -292,10 +293,23 @@ def parameter_metrics(parameters, label):
                 border=True
             )
 
-def predictions_prg(data_df):
+def predictions_prg(data_dict):
+    """Display predictions as editable data using dictionary data"""
     with st.container():
+        # Convert dictionary to list of dictionaries for st.data_editor
+        categories = data_dict['categories']
+        confidences = data_dict['confidences']
+        
+        # Create list of dictionaries format
+        data_list = []
+        for i, category in enumerate(categories):
+            data_list.append({
+                "Brick": category,
+                "predictions": confidences[i] / 100.0  # Convert to 0-1 range for progress column
+            })
+        
         st.data_editor(
-            data_df,
+            data_list,
             column_config={
                 "Brick": st.column_config.TextColumn(
                     "Brick",
@@ -311,17 +325,51 @@ def predictions_prg(data_df):
             hide_index=True,
         )
 
-def predictions(df):
+def predictions(data_dict):
+    """Create a Plotly horizontal bar chart using dictionary data"""
     with st.container():
-        st.bar_chart(
-            df,
-            x="Top Categories",
-            y="Confidence (%)",
-            color="#B34949",
-            horizontal=True,
-            height=300,
-            use_container_width=True
+        categories = data_dict['categories']
+        confidences = data_dict['confidences']
+        
+        # Create Plotly horizontal bar chart
+        fig = go.Figure(data=[
+            go.Bar(
+                y=categories,
+                x=confidences,
+                orientation='h',
+                marker_color='#B34949',  # Same color as original
+                text=[round(conf, 1) for conf in confidences],  # Add text labels
+                texttemplate='%{text}%',
+                textposition='inside',
+                textfont=dict(color='white', size=12)
+            )
+        ])
+        
+        # Update layout to match original styling
+        fig.update_layout(
+            height=300,  # Same height as original
+            xaxis_title="Confidence (%)",
+            yaxis_title="Top Categories",
+            showlegend=False,
+            margin=dict(l=10, r=10, t=30, b=10),
+            plot_bgcolor='rgba(0,0,0,0)',  # Transparent background
+            paper_bgcolor='rgba(0,0,0,0)',  # Transparent background
+            font=dict(size=12),
+            xaxis=dict(
+                showgrid=True,
+                gridcolor='lightgray',
+                gridwidth=1,
+                range=[0, 100]  # Set x-axis range from 0 to 100%
+            ),
+            yaxis=dict(
+                showgrid=False,
+                # Reverse the order to match typical horizontal bar chart convention
+                autorange='reversed'
+            )
         )
+        
+        # Display the chart in Streamlit
+        st.plotly_chart(fig, use_container_width=True)
 
 def extract_confidence_from_filename(filepath):
     """Extract confidence value from filename ending with conf{X.XXX}.jpg"""
@@ -442,7 +490,7 @@ def main():
     if 'auto_refresh' not in st.session_state:
         st.session_state.auto_refresh = True
     if 'refresh_interval' not in st.session_state:
-        st.session_state.refresh_interval = 5  # seconds
+        st.session_state.refresh_interval = 1  # seconds
     
     # Initialize class counters
     initialize_class_counters()
@@ -558,8 +606,8 @@ def main():
         st.markdown("*Real-time analysis and performance data*")
         
         # Create predictions chart from real-time data
-        predictions_df = create_predictions_dataframe(real_time_data)
-        predictions(predictions_df)
+        predictions_data = create_predictions_data(real_time_data)
+        predictions(predictions_data)
         
         inner_left_col, inner_right_col = st.columns(2)
 
@@ -609,12 +657,18 @@ def main():
         </div>
         """, unsafe_allow_html=True)
         
-        # Simple page refresh for development/demo purposes
-        # In production, consider using file watchers, websockets, or other real-time mechanisms
-        if st.session_state.refresh_interval <= 10:  # Only for short intervals
-            st.markdown(f"""
-            <meta http-equiv="refresh" content="{st.session_state.refresh_interval}">
-            """, unsafe_allow_html=True)
+        # Use Streamlit's native auto-refresh without page reload
+        # Initialize last check time
+        if 'last_auto_check' not in st.session_state:
+            st.session_state.last_auto_check = time.time()
+        
+        # Check if enough time has passed for next auto-refresh
+        current_time = time.time()
+        if current_time - st.session_state.last_auto_check >= st.session_state.refresh_interval:
+            st.session_state.last_auto_check = current_time
+            # Only rerun if we detect actual changes to avoid unnecessary refreshes
+            if check_for_updates():
+                st.rerun()
     
     else:
         st.caption("Auto-refresh disabled • Use manual refresh to update")
