@@ -9,8 +9,8 @@ async def main():
     print("=" * 50)
 
     # You can customize these parameters
-    CLASSIFIER_MODEL_PATH = "/home/candfpi4b/lego_pdm/legoml/brick_classifier_simple_torchscript.pt"
-    INTERVAL = 5.0  # Minimum time between processing same class (used for both classifier and orchestrator)
+    CLASSIFIER_MODEL_PATH = "/home/candfpi4b/fresh_repo/legoml/inference/inference_system_v1/brick_classifier_simple_torchscript.pt"
+    INTERVAL = 2.5  # Minimum time between processing same class (used for both classifier and orchestrator)
     CHECK_INTERVAL = 1.0  # How often to check for new predictions (can be faster than INTERVAL)
     CONFIDENCE_THRESHOLD = 0.5  # Minimum confidence to process a brick
 

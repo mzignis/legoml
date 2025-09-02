@@ -37,11 +37,11 @@ class DashboardConnector:
             # Run streamlit with configuration flags
             subprocess.run([
                 "streamlit", "run", 
-                "legoml/inference/inference_system_v1_headless/dashboard_v1.py",
+                "/home/candfpi4b/fresh_repo/legoml/inference/inference_system_v1/dashboard_v1.py",
                 "--server.port=8501",
                 "--server.address=localhost",  # Local access only
                 "--browser.gatherUsageStats=false",  # Disable usage stats
-                "--global.disableWatchdogWarning=true",  # Disable watchdog warnings
+                #"--global.disableWatchdogWarning=true",  # Disable watchdog warnings
                 "--server.runOnSave=true"  # Auto-reload on file changes
             ], env=env, check=True)
             
