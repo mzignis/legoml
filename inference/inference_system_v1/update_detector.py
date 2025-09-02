@@ -88,10 +88,18 @@ class UpdateDetector:
                     current_hash = hashlib.md5(content.encode()).hexdigest()
                 
                 if current_hash != self.json_content_hash:
+                    print(f"🔄 JSON CHANGE DETECTED!")
+                    print(f"   Old hash: {self.json_content_hash[:8]}...")
+                    print(f"   New hash: {current_hash[:8]}...")
+                    print(f"   Content preview: {content[:100]}...")
                     self.json_content_hash = current_hash
                     changes_detected = True
-            except (OSError, json.JSONDecodeError):
-                pass
+                else:
+                    print(f"📄 JSON checked - no changes (hash: {current_hash[:8]}...)")
+            except (OSError, json.JSONDecodeError) as e:
+                print(f"❌ JSON read error: {e}")
+        else:
+            print(f"❌ JSON file doesn't exist: {self.json_path}")
         
         # Check JPG files
         if self.snapshots_folder.exists():
@@ -118,7 +126,7 @@ class UpdateDetector:
         """Send update signal via file for Streamlit integration."""
         try:
             # Create a signal file that the dashboard can detect
-            signal_file = Path(".dashboard_update_signal")
+            signal_file = Path("/home/candfpi4b/fresh_repo/.dashboard_update_signal")
             signal_file.touch()
             print(f"📡 Update signal sent at {time.strftime('%H:%M:%S')}")
         except Exception as e:
@@ -283,8 +291,8 @@ if __name__ == "__main__":
                 break
     
     # Test the system
-    JSON_PATH = "dashboard_data.json"
-    SNAPSHOTS_FOLDER = "snapshots"
+    JSON_PATH = "/home/candfpi4b/fresh_repo/legoml/dashboard_data.json"
+    SNAPSHOTS_FOLDER = "/home/candfpi4b/fresh_repo/snapshots"
     
     # Start monitor
     monitor_proc = mp.Process(target=monitor_process, args=(JSON_PATH, SNAPSHOTS_FOLDER))

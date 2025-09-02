@@ -10,30 +10,44 @@ import plotly.graph_objects as go
 
 
 def load_real_time_data():
-    data_file = Path("dashboard_data.json")
+    # Use the exact same path your main program writes to
+    data_file = Path("/home/candfpi4b/fresh_repo/dashboard_data.json")
+    
+    print(f"🔍 Dashboard: Looking for JSON at {data_file.absolute()}")  # DEBUG
+    print(f"🔍 Dashboard: File exists: {data_file.exists()}")  # DEBUG
+    
     if data_file.exists():
         try:
+            # Debug the file modification time
+            mtime = data_file.stat().st_mtime
+            print(f"🔍 Dashboard: File modified: {time.strftime('%H:%M:%S', time.localtime(mtime))}")
+            
             with open(data_file, 'r') as f:
-                return json.load(f)
-        except:
-            pass
+                data = json.load(f)
+                timestamp = data.get('timestamp', 'none')
+                print(f"📄 Dashboard: JSON loaded - timestamp {timestamp}")
+                return data
+        except Exception as e:
+            print(f"❌ Dashboard: JSON error: {e}")
+    else:
+        print(f"❌ Dashboard: JSON file not found")
+    
     return None
 
 
+# 1. UPDATE your check_for_monitor_updates function (replace the existing one):
 def check_for_monitor_updates():
-    """
-    Check for update signal from monitor process.
-    Returns True if updates detected, False otherwise.
-    """
-    signal_file = Path(".dashboard_update_signal")
+    """Check for update signal with debug logging."""
+    signal_file = Path("/home/candfpi4b/fresh_repo/.dashboard_update_signal")
     
     if signal_file.exists():
         try:
-            # Read and remove the signal file
+            print(f"🔄 Dashboard: Signal detected at {time.strftime('%H:%M:%S')}")
             signal_file.unlink()  # Delete the file
+            print(f"🗑️ Dashboard: Signal deleted at {time.strftime('%H:%M:%S')}")
             return True
-        except:
-            pass
+        except Exception as e:
+            print(f"❌ Dashboard: Signal error: {e}")
     
     return False
 
@@ -118,7 +132,7 @@ def get_metric_values():
 
 
 def load_latest_snapshots(limit=5):
-    snapshots_dir = Path("snapshots")
+    snapshots_dir = Path("/home/candfpi4b/fresh_repo/snapshots")
     if snapshots_dir.exists():
         image_files = sorted(
             glob.glob(str(snapshots_dir / "*.jpg")) + glob.glob(str(snapshots_dir / "*.JPG")),
@@ -304,11 +318,15 @@ def predictions_prg(data_dict):
             hide_index=True,
         )
 
+# 5. UPDATE your predictions function (replace the existing one):
 def predictions(data_dict):
     """Create a Plotly horizontal bar chart using dictionary data"""
     with st.container():
         categories = data_dict['categories']
         confidences = data_dict['confidences']
+        
+        # Debug: Print the data being charted
+        print(f"📊 Dashboard: Charting {categories} with {confidences}")
         
         # Create Plotly horizontal bar chart
         fig = go.Figure(data=[
@@ -316,8 +334,8 @@ def predictions(data_dict):
                 y=categories,
                 x=confidences,
                 orientation='h',
-                marker_color='#B34949',  # Same color as original
-                text=[round(conf, 1) for conf in confidences],  # Add text labels
+                marker_color='#B34949',
+                text=[round(conf, 1) for conf in confidences],
                 texttemplate='%{text}%',
                 textposition='inside',
                 textfont=dict(color='white', size=12)
@@ -326,29 +344,29 @@ def predictions(data_dict):
         
         # Update layout to match original styling
         fig.update_layout(
-            height=300,  # Same height as original
+            height=300,
             xaxis_title="Confidence (%)",
             yaxis_title="Top Categories",
             showlegend=False,
             margin=dict(l=10, r=10, t=30, b=10),
-            plot_bgcolor='rgba(0,0,0,0)',  # Transparent background
-            paper_bgcolor='rgba(0,0,0,0)',  # Transparent background
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
             font=dict(size=12),
             xaxis=dict(
                 showgrid=True,
                 gridcolor='lightgray',
                 gridwidth=1,
-                range=[0, 100]  # Set x-axis range from 0 to 100%
+                range=[0, 100]
             ),
             yaxis=dict(
                 showgrid=False,
-                # Reverse the order to match typical horizontal bar chart convention
                 autorange='reversed'
             )
         )
         
-        # Display the chart in Streamlit
-        st.plotly_chart(fig, use_container_width=True)
+        # Display the chart with a unique key to prevent caching
+        chart_key = f"predictions_{hash(str(data_dict))}"
+        st.plotly_chart(fig, use_container_width=True, key=chart_key)
 
 def extract_confidence_from_filename(filepath):
     """Extract confidence value from filename ending with conf{X.XXX}.jpg"""
@@ -490,7 +508,7 @@ def main():
         
         # Monitor status
         st.subheader("Monitor Status")
-        monitor_signal_exists = Path(".dashboard_update_signal").exists()
+        monitor_signal_exists = Path("/home/candfpi4b/fresh_repo/legoml/inference/inference_system_v1/.dashboard_update_signal").exists()
         if monitor_signal_exists:
             st.success("🔄 Update signal detected!")
         else:
@@ -569,9 +587,24 @@ def main():
                     st.text(f"{filename}: {conf:.1f}%")
                 else:
                     st.text(f"{filename}: No confidence found")
+
+        # ADD these debug lines:
+        st.subheader("Debug")
+        
+        signal_exists = Path(".dashboard_update_signal").exists()
+        if signal_exists:
+            st.error("Signal file exists!")
+        else:
+            st.success("No signal file")
+        
+        if real_time_data:
+            st.success("JSON loaded")
+            st.text(f"Timestamp: {real_time_data.get('timestamp', 'none')}")
+        else:
+            st.error("No JSON data")
     
     # Check if snapshots directory exists
-    if not Path("snapshots").exists():
+    if not Path("/home/candfpi4b/fresh_repo/snapshots").exists():
         st.error("'snapshots' folder does not exist. Please create it and add JPG images.")
         st.info("Create a 'snapshots' folder in your project directory and add JPG files to get started.")
         return
@@ -619,9 +652,16 @@ def main():
     # Check for monitor updates and auto-refresh
     monitor_update_detected = check_for_monitor_updates()
     
+    # ADD these debug lines:
     if monitor_update_detected:
-        st.success("🔄 Files updated! Dashboard refreshed by monitor.")
-        # Force refresh when monitor detects changes
+        st.success("🔄 Monitor signal detected! Refreshing...")
+        print(f"🔄 Dashboard: Forcing refresh at {time.strftime('%H:%M:%S')}")
+        
+        # Force chart refresh by clearing any cached data
+        for key in list(st.session_state.keys()):
+            if 'chart' in key or 'prediction' in key:
+                del st.session_state[key]
+        
         st.rerun()
     
     # Auto-refresh functionality (now works with monitor)
