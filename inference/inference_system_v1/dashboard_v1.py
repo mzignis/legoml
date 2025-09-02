@@ -20,6 +20,24 @@ def load_real_time_data():
     return None
 
 
+def check_for_monitor_updates():
+    """
+    Check for update signal from monitor process.
+    Returns True if updates detected, False otherwise.
+    """
+    signal_file = Path(".dashboard_update_signal")
+    
+    if signal_file.exists():
+        try:
+            # Read and remove the signal file
+            signal_file.unlink()  # Delete the file
+            return True
+        except:
+            pass
+    
+    return False
+
+
 def initialize_class_counters():
     class_names = [
         'white_1x3_good', 'white_2x2_good', 'white_2x4_good',
@@ -97,45 +115,6 @@ def get_metric_values():
     ]
     
     return undamaged_counts, damaged_counts
-
-
-def check_for_updates():
-    json_file = Path("dashboard_data.json")
-    snapshots_dir = Path("snapshots")
-    
-    # Initialize session state for tracking modification times
-    if 'last_json_mtime' not in st.session_state:
-        st.session_state.last_json_mtime = None
-    if 'last_snapshots_mtime' not in st.session_state:
-        st.session_state.last_snapshots_mtime = None
-    
-    updates_detected = False
-    
-    # Check JSON file
-    if json_file.exists():
-        current_json_mtime = get_file_modification_time(json_file)
-        if st.session_state.last_json_mtime != current_json_mtime:
-            st.session_state.last_json_mtime = current_json_mtime
-            updates_detected = True
-    
-    # Check snapshots directory
-    if snapshots_dir.exists():
-        try:
-            # Get the most recent image modification time
-            image_files = sorted(
-                glob.glob(str(snapshots_dir / "*.jpg")) + glob.glob(str(snapshots_dir / "*.JPG")),
-                key=lambda x: Path(x).stat().st_mtime,
-                reverse=True
-            )
-            if image_files:
-                current_snapshots_mtime = Path(image_files[0]).stat().st_mtime
-                if st.session_state.last_snapshots_mtime != current_snapshots_mtime:
-                    st.session_state.last_snapshots_mtime = current_snapshots_mtime
-                    updates_detected = True
-        except:
-            pass
-    
-    return updates_detected
 
 
 def load_latest_snapshots(limit=5):
@@ -490,7 +469,7 @@ def main():
     if 'auto_refresh' not in st.session_state:
         st.session_state.auto_refresh = True
     if 'refresh_interval' not in st.session_state:
-        st.session_state.refresh_interval = 1  # seconds
+        st.session_state.refresh_interval = 2  # seconds - slightly longer for monitor integration
     
     # Initialize class counters
     initialize_class_counters()
@@ -508,6 +487,14 @@ def main():
     # Configuration section in the sidebar
     with st.sidebar:
         st.header("Settings")
+        
+        # Monitor status
+        st.subheader("Monitor Status")
+        monitor_signal_exists = Path(".dashboard_update_signal").exists()
+        if monitor_signal_exists:
+            st.success("🔄 Update signal detected!")
+        else:
+            st.info("👁️ Monitoring active")
         
         # Auto-refresh controls
         st.subheader("Auto-Refresh")
@@ -629,46 +616,31 @@ def main():
         }
         parameter_metrics(parameters, "Parameter Metrics")
     
-    # Auto-refresh functionality
+    # Check for monitor updates and auto-refresh
+    monitor_update_detected = check_for_monitor_updates()
+    
+    if monitor_update_detected:
+        st.success("🔄 Files updated! Dashboard refreshed by monitor.")
+        # Force refresh when monitor detects changes
+        st.rerun()
+    
+    # Auto-refresh functionality (now works with monitor)
     if st.session_state.auto_refresh:
-        # Check for file updates every time the app runs
-        updates_detected = check_for_updates()
-        
-        if updates_detected or counter_updated:
-            if counter_updated:
-                st.success("New detection processed! Counter updated.")
-            else:
-                st.success("File changes detected! Dashboard updated.")
-        
         # Show auto-refresh status
-        last_update_time = st.session_state.get('last_json_mtime', None)
-        if last_update_time:
-            formatted_time = time.strftime('%H:%M:%S', time.localtime(last_update_time))
-            st.caption(f"Auto-refresh active • Last update: {formatted_time}")
-        else:
-            st.caption("Auto-refresh active • Waiting for data...")
+        st.caption(f"Auto-refresh active • Monitor integration enabled")
         
         # Show auto-refresh indicator
         st.markdown(f"""
         <div style="position: fixed; bottom: 10px; right: 10px; z-index: 999; 
                     background: rgba(34, 139, 34, 0.9); color: white; 
                     padding: 8px 12px; border-radius: 20px; font-size: 12px;">
-            Monitoring files every {st.session_state.refresh_interval}s
+            🔍 Monitor Active • Refresh: {st.session_state.refresh_interval}s
         </div>
         """, unsafe_allow_html=True)
         
-        # Use Streamlit's native auto-refresh without page reload
-        # Initialize last check time
-        if 'last_auto_check' not in st.session_state:
-            st.session_state.last_auto_check = time.time()
-        
-        # Check if enough time has passed for next auto-refresh
-        current_time = time.time()
-        if current_time - st.session_state.last_auto_check >= st.session_state.refresh_interval:
-            st.session_state.last_auto_check = current_time
-            # Only rerun if we detect actual changes to avoid unnecessary refreshes
-            if check_for_updates():
-                st.rerun()
+        # Periodic refresh to check for monitor signals
+        time.sleep(st.session_state.refresh_interval)
+        st.rerun()
     
     else:
         st.caption("Auto-refresh disabled • Use manual refresh to update")
