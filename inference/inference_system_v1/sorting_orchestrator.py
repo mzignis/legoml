@@ -1,5 +1,7 @@
 import asyncio
 import time
+import subprocess
+import sys
 from hardware_controller import HardwareController
 from classifier_manager import ClassifierManager
 from sorting_strategy import SortingStrategy
@@ -17,6 +19,41 @@ class SortingOrchestrator:
         self.conveyor_stop_time = 0  # When the conveyor should stop
         self.conveyor_task = None  # Task managing conveyor operations
 
+    def cleanup_port_8501(self):
+        """Kill any process using port 8501 before starting dashboard"""
+        try:
+            # Find process using port 8501
+            result = subprocess.run(['lsof', '-i', ':8501'], 
+                                  capture_output=True, text=True, timeout=10)
+            
+            if result.returncode == 0 and result.stdout.strip():
+                lines = result.stdout.strip().split('\n')
+                
+                # Skip header line, process each process line
+                for line in lines[1:]:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        pid = parts[1]
+                        process_name = parts[0]
+                        print(f"Found process {process_name} (PID: {pid}) using port 8501")
+                        
+                        try:
+                            # Kill the process
+                            subprocess.run(['kill', '-9', pid], check=True, timeout=5)
+                            print(f"Successfully killed process {pid}")
+                        except subprocess.CalledProcessError as e:
+                            print(f"Failed to kill process {pid}: {e}")
+                        except subprocess.TimeoutExpired:
+                            print(f"Timeout while trying to kill process {pid}")
+            else:
+                print("No process found using port 8501")
+                
+        except subprocess.TimeoutExpired:
+            print("Timeout while checking for processes on port 8501")
+        except FileNotFoundError:
+            print("lsof command not found. Skipping port cleanup.")
+        except Exception as e:
+            print(f"Error during port cleanup: {e}")
 
     async def initialize_system(self):
         # Step 1: Initialize classifier
@@ -39,18 +76,21 @@ class SortingOrchestrator:
         
         print("\nCONNECTION ESTABLISHED!")
 
-        # Start dashboard in separate process
+        # Step 3: Clean up port 8501 before starting dashboard
+        print("\nStep 3: Cleaning up port 8501...")
+        self.cleanup_port_8501()
+        
+        # Step 4: Start dashboard in separate process
+        print("\nStep 4: Starting dashboard...")
         self.dashboard.start_dashboard_process()
         return True
 
-
     async def start_classifier_system(self, same_prediction_interval, check_interval):
-        print("\nStep 3: Starting brick classifier...")
+        print("\nStep 5: Starting brick classifier...")
         if not self.classifier.start_classifier(same_prediction_interval, check_interval):
             print("Failed to start classifier. Exiting.")
             return False
         return True
-
 
     async def automatic_brick_sorting_loop(self, confidence_threshold=0.5, check_interval=1.0, min_processing_interval=None):
         # Use check_interval as min_processing_interval if not specified
@@ -159,7 +199,6 @@ class SortingOrchestrator:
         
         print("Automatic sorting stopped.")
 
-
     async def queue_brick(self, brick_type, brick_size, detection_time):
         """Queue a brick for processing with immediate timer start"""
         brick_info = {
@@ -183,7 +222,6 @@ class SortingOrchestrator:
         if processing_end_time > self.conveyor_stop_time:
             self.conveyor_stop_time = processing_end_time
             print(f"Conveyor stop time updated to: {self.conveyor_stop_time:.1f}")
-
 
     async def manage_conveyor_and_pushers(self):
         """Manage conveyor operations and pusher timing for all queued bricks"""
@@ -216,7 +254,6 @@ class SortingOrchestrator:
                 self.conveyor_stop_time = 0
             
             await asyncio.sleep(0.1)  # Check frequently for precise timing
-
 
     async def check_and_fire_pushers(self, brick_info, current_time):
         """Check if it's time to fire pushers for a specific brick"""
@@ -257,7 +294,6 @@ class SortingOrchestrator:
             if current_time >= pass_through_time:
                 brick_info['processed'] = True
                 print(f"Undamaged brick passed through successfully!")
-
 
     async def shutdown_system(self):
         await self.hardware.disconnect()

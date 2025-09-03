@@ -126,7 +126,7 @@ class UpdateDetector:
         """Send update signal via file for Streamlit integration."""
         try:
             # Create a signal file that the dashboard can detect
-            signal_file = Path("/home/candfpi4b/fresh_repo/.dashboard_update_signal")
+            signal_file = Path("/home/candfpi4b/fresh_repo/legoml/inference/inference_system_v1/.dashboard_update_signal")
             signal_file.touch()
             print(f"📡 Update signal sent at {time.strftime('%H:%M:%S')}")
         except Exception as e:
