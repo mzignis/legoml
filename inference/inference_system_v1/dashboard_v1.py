@@ -1,58 +1,79 @@
 import streamlit as st
 import os
 import glob
-from PIL import Image
+import queue
 import time
 import json
+from PIL import Image
 from pathlib import Path
-import plotly.express as px
 import plotly.graph_objects as go
 
+from signal_listener import start_signal_listener
 
+
+# Signal handling functions
+def setup_signal_listener():
+    """Initialize the signal listener (only once per session)"""
+    if 'signal_listener' not in st.session_state:
+        # Create a queue for thread-safe communication
+        st.session_state.update_queue = queue.Queue()
+        
+        def on_signal_received(signal: bool):
+            """Callback when signal is detected"""
+            if signal:
+                # Put update notification in queue with timestamp
+                st.session_state.update_queue.put({
+                    'type': 'dashboard_update',
+                    'timestamp': time.time(),
+                    'source': 'ml_inference'
+                })
+        
+        # Start the signal listener
+        st.session_state.signal_listener = start_signal_listener(
+            signal_path="/home/candfpi4b/fresh_repo/legoml/inference/inference_system_v1/",  # Adjust path as needed
+            callback=on_signal_received,
+            check_interval=0.2  # Check every 200ms for responsiveness
+        )
+        
+        st.sidebar.success("🎯 Signal listener started!")
+
+
+def check_for_updates():
+    """Check if any updates are pending in the queue"""
+    if hasattr(st.session_state, 'update_queue'):
+        try:
+            # Non-blocking check for updates
+            update = st.session_state.update_queue.get_nowait()
+            return True, update
+        except queue.Empty:
+            return False, None
+    return False, None
+
+
+def cleanup_listener():
+    """Clean up the signal listener (called on app shutdown)"""
+    if hasattr(st.session_state, 'signal_listener'):
+        st.session_state.signal_listener.stop()
+
+
+# Original dashboard functions (unchanged)
 def load_real_time_data():
-    # Use the exact same path your main program writes to
+    """Load real-time prediction data from JSON file"""
     data_file = Path("/home/candfpi4b/fresh_repo/dashboard_data.json")
-    
-    print(f"🔍 Dashboard: Looking for JSON at {data_file.absolute()}")  # DEBUG
-    print(f"🔍 Dashboard: File exists: {data_file.exists()}")  # DEBUG
     
     if data_file.exists():
         try:
-            # Debug the file modification time
-            mtime = data_file.stat().st_mtime
-            print(f"🔍 Dashboard: File modified: {time.strftime('%H:%M:%S', time.localtime(mtime))}")
-            
             with open(data_file, 'r') as f:
                 data = json.load(f)
-                timestamp = data.get('timestamp', 'none')
-                print(f"📄 Dashboard: JSON loaded - timestamp {timestamp}")
                 return data
         except Exception as e:
-            print(f"❌ Dashboard: JSON error: {e}")
-    else:
-        print(f"❌ Dashboard: JSON file not found")
+            return None
     
     return None
 
 
-# 1. UPDATE your check_for_monitor_updates function (replace the existing one):
-def check_for_monitor_updates():
-    """Check for update signal with debug logging."""
-    signal_file = Path("/home/candfpi4b/fresh_repo/.dashboard_update_signal")
-    
-    if signal_file.exists():
-        try:
-            print(f"🔄 Dashboard: Signal detected at {time.strftime('%H:%M:%S')}")
-            signal_file.unlink()  # Delete the file
-            print(f"🗑️ Dashboard: Signal deleted at {time.strftime('%H:%M:%S')}")
-            return True
-        except Exception as e:
-            print(f"❌ Dashboard: Signal error: {e}")
-    
-    return False
-
-
 def initialize_class_counters():
+    """Initialize counters for all brick classes"""
     class_names = [
         'white_1x3_good', 'white_2x2_good', 'white_2x4_good',
         'blue_2x2_good', 'blue_2x6_good', 'blue_1x6_good',
@@ -67,6 +88,7 @@ def initialize_class_counters():
 
 
 def update_class_counters(real_time_data):
+    """Update class counters with new prediction data"""
     if not real_time_data or 'classes' not in real_time_data or 'confidences' not in real_time_data:
         return False, None
     
@@ -90,7 +112,7 @@ def update_class_counters(real_time_data):
         # Initialize counters if needed
         counters = initialize_class_counters()
         
-        # Increment counter for the predicted class (if it's one of our 12 tracked classes)
+        # Increment counter for the predicted class (if it's one of our tracked classes)
         if predicted_class in counters:
             st.session_state.class_counters[predicted_class] += 1
             st.session_state.last_processed_timestamp = current_timestamp
@@ -99,14 +121,8 @@ def update_class_counters(real_time_data):
     return False, None
 
 
-def get_file_modification_time(filepath):
-    try:
-        return Path(filepath).stat().st_mtime
-    except:
-        return None
-
-
 def get_metric_values():
+    """Get current counter values organized by category"""
     counters = initialize_class_counters()
     
     # Map counters to metric positions
@@ -132,6 +148,7 @@ def get_metric_values():
 
 
 def load_latest_snapshots(limit=5):
+    """Load the most recent snapshot images"""
     snapshots_dir = Path("/home/candfpi4b/fresh_repo/snapshots")
     if snapshots_dir.exists():
         image_files = sorted(
@@ -146,7 +163,6 @@ def load_latest_snapshots(limit=5):
 def create_predictions_data(real_time_data):
     """Create dictionary for predictions chart from real-time data"""
     if real_time_data is None:
-        # Fallback data if no real-time data available
         return {
             'categories': ['No Data', 'Available', 'Please Check', 'JSON File', 'Connection'],
             'confidences': [20, 20, 20, 20, 20]
@@ -168,7 +184,7 @@ def create_predictions_data(real_time_data):
         
         # Calculate "other" confidence
         total_confidence = sum(confidences_pct)
-        other_confidence = max(0, 100 - total_confidence)  # Ensure non-negative
+        other_confidence = max(0, 100 - total_confidence)
         
         # Create the data dictionary
         categories = classes + ['Other']
@@ -181,7 +197,6 @@ def create_predictions_data(real_time_data):
     
     except Exception as e:
         st.error(f"Error processing real-time data: {e}")
-        # Return fallback data
         return {
             'categories': ['Error', 'Loading', 'Data', 'Please', 'Retry'],
             'confidences': [20, 20, 20, 20, 20]
@@ -190,143 +205,68 @@ def create_predictions_data(real_time_data):
 
 st.set_page_config(
     page_title="Image Dashboard",
-    layout="wide",  # This makes the page use the full width
-    initial_sidebar_state="collapsed"  # Start with sidebar collapsed but accessible
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
+
 def amount_metric(state, num):
+    """Display brick count metrics in a grid"""
     with st.container():
         st.markdown(f"### {state}")
         # First row
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            st.metric(
-                label="W 1x3",
-                value=num[0],
-                border=True
-            )
+            st.metric(label="W 1x3", value=num[0], border=True)
 
         with col2:
-            st.metric(
-                label="W 2x2", 
-                value=num[1],
-                border=True
-            )
+            st.metric(label="W 2x2", value=num[1], border=True)
 
         with col3:
-            st.metric(
-                label="W 2x4",
-                value=num[2],
-                border=True
-            )
+            st.metric(label="W 2x4", value=num[2], border=True)
 
         # Second row
         col4, col5, col6 = st.columns(3)
 
         with col4:
-            st.metric(
-                label="B 2x2",
-                value=num[3],
-                border=True
-            )
+            st.metric(label="B 2x2", value=num[3], border=True)
 
         with col5:
-            st.metric(
-                label="B 1x6", 
-                value=num[4],
-                border=True
-            )
+            st.metric(label="B 1x6", value=num[4], border=True)
 
         with col6:
-            st.metric(
-                label="B 2x6",
-                value=num[5],
-                border=True
-            )
+            st.metric(label="B 2x6", value=num[5], border=True)
+
 
 def parameter_metrics(parameters, label): 
+    """Display additional parameter metrics"""
     with st.container():
         st.markdown(f"### {label}")
         col1, col2 = st.columns(2)
         with col1:
-            st.metric(
-                label="Metric 1",
-                value=parameters['A'], 
-                border=True
-            )
+            st.metric(label="Metric 1", value=parameters['A'], border=True)
 
         with col2:
-            st.metric(
-                label="Metric 2",  
-                value=parameters['B'], 
-                border=True
-            )
+            st.metric(label="Metric 2", value=parameters['B'], border=True)
 
         col3, col4, col5 = st.columns(3)
 
         with col3:
-            st.metric(
-                label="Metric 3",
-                value=parameters['C'],
-                border=True
-            )
+            st.metric(label="Metric 3", value=parameters['C'], border=True)
 
         with col4:
-            st.metric(
-                label="Metric 4", 
-                value=parameters['D'],
-                border=True
-            )
+            st.metric(label="Metric 4", value=parameters['D'], border=True)
 
         with col5:
-            st.metric(
-                label="Metric 5",
-                value=parameters['E'],
-                border=True
-            )
+            st.metric(label="Metric 5", value=parameters['E'], border=True)
 
-def predictions_prg(data_dict):
-    """Display predictions as editable data using dictionary data"""
-    with st.container():
-        # Convert dictionary to list of dictionaries for st.data_editor
-        categories = data_dict['categories']
-        confidences = data_dict['confidences']
-        
-        # Create list of dictionaries format
-        data_list = []
-        for i, category in enumerate(categories):
-            data_list.append({
-                "Brick": category,
-                "predictions": confidences[i] / 100.0  # Convert to 0-1 range for progress column
-            })
-        
-        st.data_editor(
-            data_list,
-            column_config={
-                "Brick": st.column_config.TextColumn(
-                    "Brick",
-                    help="Top 5 brick types",
-                    width="small",
-                ),
-                "predictions": st.column_config.ProgressColumn(
-                    "Confidence Score",
-                    help="The 5 highest confidence scores",
-                    format="percent",
-                ),
-            },
-            hide_index=True,
-        )
 
-# 5. UPDATE your predictions function (replace the existing one):
 def predictions(data_dict):
-    """Create a Plotly horizontal bar chart using dictionary data"""
+    """Create a Plotly horizontal bar chart for predictions"""
     with st.container():
         categories = data_dict['categories']
         confidences = data_dict['confidences']
-        
-        # Debug: Print the data being charted
-        print(f"📊 Dashboard: Charting {categories} with {confidences}")
         
         # Create Plotly horizontal bar chart
         fig = go.Figure(data=[
@@ -342,7 +282,7 @@ def predictions(data_dict):
             )
         ])
         
-        # Update layout to match original styling
+        # Update layout
         fig.update_layout(
             height=300,
             xaxis_title="Confidence (%)",
@@ -364,37 +304,35 @@ def predictions(data_dict):
             )
         )
         
-        # Display the chart with a unique key to prevent caching
-        chart_key = f"predictions_{hash(str(data_dict))}"
-        st.plotly_chart(fig, use_container_width=True, key=chart_key)
+        st.plotly_chart(fig, use_container_width=True)
+
 
 def extract_confidence_from_filename(filepath):
     """Extract confidence value from filename ending with conf{X.XXX}.jpg"""
     try:
         filename = Path(filepath).name
-        # Look for pattern like "conf0.762.jpg"
         if "conf" in filename and filename.endswith(".jpg"):
-            # Find the part after "conf" and before ".jpg"
             conf_part = filename.split("conf")[-1].replace(".jpg", "")
             confidence = float(conf_part)
-            return confidence * 100 if confidence <= 1.0 else confidence  # Convert to percentage if needed
+            return confidence * 100 if confidence <= 1.0 else confidence
     except (ValueError, IndexError):
         pass
     return None
 
 
-def display_image_vertical_with_metrics(image_paths, confidence_scores=None, real_time_data=None):    
+def display_image_vertical_with_metrics(image_paths):    
+    """Display images vertically with confidence metrics"""
     if not image_paths:
         st.warning("No JPG images found in the snapshots folder.")
         return
     
-    # Define fixed rectangular sizes for each image (width, height) - more gradual shrinking
+    # Define fixed rectangular sizes for each image
     image_sizes = [
         (400, 200),   # Most recent image
         (360, 180),   # Second image  
         (300, 150),   # Third image
         (240, 120),   # Fourth image
-        (200, 100)    # Fifth image (same as old fourth image)
+        (200, 100)    # Fifth image
     ]
     
     # Extract confidence scores from filenames
@@ -404,7 +342,6 @@ def display_image_vertical_with_metrics(image_paths, confidence_scores=None, rea
         if conf is not None:
             confidence_scores.append(conf)
         else:
-            # Fallback confidence if filename doesn't contain confidence
             confidence_scores.append(50.0)  # Default 50%
     
     # Add custom CSS for the image-metric containers
@@ -413,7 +350,7 @@ def display_image_vertical_with_metrics(image_paths, confidence_scores=None, rea
     .image-metric-row {
         display: flex;
         align-items: flex-start;
-        margin-bottom: 32px;  /* Increased vertical spacing between images */
+        margin-bottom: 32px;
         gap: 12px;
     }
     
@@ -429,7 +366,6 @@ def display_image_vertical_with_metrics(image_paths, confidence_scores=None, rea
         min-width: 120px;
     }
     
-    /* Additional spacing between image containers */
     .stContainer > div {
         margin-bottom: 24px;
     }
@@ -437,7 +373,7 @@ def display_image_vertical_with_metrics(image_paths, confidence_scores=None, rea
     """, unsafe_allow_html=True)
     
     # Display all images vertically with their metrics
-    for i, image_path in enumerate(image_paths[:5]):  # Limit to 5 images
+    for i, image_path in enumerate(image_paths[:5]):
         try:
             # Open the image
             current_image = Image.open(image_path)
@@ -458,7 +394,7 @@ def display_image_vertical_with_metrics(image_paths, confidence_scores=None, rea
                     confidence = confidence_scores[i] if i < len(confidence_scores) else 50
                     
                     # Calculate delta as change to next confidence
-                    if i+1 >= len(confidence_scores):  # No next confidence available
+                    if i+1 >= len(confidence_scores):
                         delta = None
                     else:
                         next_confidence = confidence_scores[i+1]
@@ -473,7 +409,6 @@ def display_image_vertical_with_metrics(image_paths, confidence_scores=None, rea
                 with img_col:
                     st.image(resized_image, width=target_width)
                 
-                # Add extra spacing after each image-metric pair
                 st.write("")  # Extra spacing between images
                 
         except Exception as e:
@@ -483,11 +418,20 @@ def display_image_vertical_with_metrics(image_paths, confidence_scores=None, rea
 def main():
     st.title("Image Analysis Dashboard")
     
-    # Initialize auto-refresh settings in session state
-    if 'auto_refresh' not in st.session_state:
-        st.session_state.auto_refresh = True
-    if 'refresh_interval' not in st.session_state:
-        st.session_state.refresh_interval = 2  # seconds - slightly longer for monitor integration
+    # Setup signal listener (only once)
+    setup_signal_listener()
+    
+    # Check for pending updates from signal listener
+    has_update, update_data = check_for_updates()
+    
+    if has_update:
+        st.success("⚡ Real-time update detected! Refreshing...")
+        # Optional: Show update details
+        if update_data:
+            st.sidebar.info(f"Update from: {update_data.get('source', 'unknown')}")
+        
+        # Trigger immediate refresh
+        st.rerun()
     
     # Initialize class counters
     initialize_class_counters()
@@ -497,8 +441,6 @@ def main():
     latest_images = load_latest_snapshots()
     
     # Update class counters if new data detected
-    counter_updated = False
-    detection_info = None
     if real_time_data:
         counter_updated, detection_info = update_class_counters(real_time_data)
     
@@ -506,46 +448,26 @@ def main():
     with st.sidebar:
         st.header("Settings")
         
-        # Monitor status
-        st.subheader("Monitor Status")
-        monitor_signal_exists = Path("/home/candfpi4b/fresh_repo/legoml/inference/inference_system_v1/.dashboard_update_signal").exists()
-        if monitor_signal_exists:
-            st.success("🔄 Update signal detected!")
+        # Signal listener status
+        if hasattr(st.session_state, 'signal_listener'):
+            st.success("🎯 Real-time monitoring active")
+            # Show queue status
+            if hasattr(st.session_state, 'update_queue'):
+                queue_size = st.session_state.update_queue.qsize()
+                if queue_size > 0:
+                    st.warning(f"⏳ {queue_size} updates pending")
+                else:
+                    st.info("📡 Monitoring for updates...")
         else:
-            st.info("👁️ Monitoring active")
+            st.error("❌ Signal listener not started")
         
-        # Auto-refresh controls
-        st.subheader("Auto-Refresh")
-        auto_refresh = st.checkbox("Enable Auto-Refresh", value=st.session_state.auto_refresh)
-        st.session_state.auto_refresh = auto_refresh
-        
-        if auto_refresh:
-            refresh_interval = st.slider(
-                "Refresh Interval (seconds)", 
-                min_value=1, 
-                max_value=30, 
-                value=st.session_state.refresh_interval,
-                step=1
-            )
-            st.session_state.refresh_interval = refresh_interval
-        
-        # Display data status
+        # Data status
         if real_time_data:
-            st.success("Real-time data loaded")
+            st.success("✅ Real-time data loaded")
             if 'timestamp' in real_time_data:
                 st.text(f"Data timestamp: {real_time_data['timestamp']}")
-            if counter_updated and detection_info:
-                st.success("Class counter updated!")
-                predicted_class = detection_info['class']
-                confidence = detection_info['confidence']
-                # Convert confidence to percentage if needed
-                if confidence <= 1.0:
-                    confidence_pct = confidence * 100
-                else:
-                    confidence_pct = confidence
-                st.info(f"Detected: **{predicted_class}** ({confidence_pct:.1f}%)")
         else:
-            st.error("No real-time data")
+            st.error("❌ No real-time data")
             st.text("Check dashboard_data.json")
         
         # Reset counters button
@@ -562,51 +484,14 @@ def main():
         # Display last update time
         st.text(f"Last updated: {time.strftime('%H:%M:%S')}")
         
-        # Debug: Show current counters
-        if st.checkbox("Show Class Counters"):
-            st.subheader("Current Counts:")
-            counters = st.session_state.class_counters
-            total_detections = sum(counters.values())
-            st.metric("Total Detections", total_detections)
-            
-            for class_name, count in counters.items():
-                if count > 0:  # Only show non-zero counts
-                    st.text(f"{class_name}: {count}")
-        
-        # Debug: Show raw data if available
-        if st.checkbox("Show Raw Data") and real_time_data:
-            st.json(real_time_data)
-            
-        # Debug: Show extracted confidences from image filenames
-        if st.checkbox("Show Image Confidences") and latest_images:
-            st.subheader("Extracted Confidences:")
-            for i, img_path in enumerate(latest_images[:5]):
-                filename = Path(img_path).name
-                conf = extract_confidence_from_filename(img_path)
-                if conf is not None:
-                    st.text(f"{filename}: {conf:.1f}%")
-                else:
-                    st.text(f"{filename}: No confidence found")
-
-        # ADD these debug lines:
-        st.subheader("Debug")
-        
-        signal_exists = Path(".dashboard_update_signal").exists()
-        if signal_exists:
-            st.error("Signal file exists!")
-        else:
-            st.success("No signal file")
-        
-        if real_time_data:
-            st.success("JSON loaded")
-            st.text(f"Timestamp: {real_time_data.get('timestamp', 'none')}")
-        else:
-            st.error("No JSON data")
+        # Cleanup button (for development)
+        if st.button("Stop Listener"):
+            cleanup_listener()
+            st.success("Signal listener stopped")
     
     # Check if snapshots directory exists
     if not Path("/home/candfpi4b/fresh_repo/snapshots").exists():
         st.error("'snapshots' folder does not exist. Please create it and add JPG images.")
-        st.info("Create a 'snapshots' folder in your project directory and add JPG files to get started.")
         return
     
     if not latest_images:
@@ -648,42 +533,7 @@ def main():
             'E': '10.5 kg'
         }
         parameter_metrics(parameters, "Parameter Metrics")
-    
-    # Check for monitor updates and auto-refresh
-    monitor_update_detected = check_for_monitor_updates()
-    
-    # ADD these debug lines:
-    if monitor_update_detected:
-        st.success("🔄 Monitor signal detected! Refreshing...")
-        print(f"🔄 Dashboard: Forcing refresh at {time.strftime('%H:%M:%S')}")
-        
-        # Force chart refresh by clearing any cached data
-        for key in list(st.session_state.keys()):
-            if 'chart' in key or 'prediction' in key:
-                del st.session_state[key]
-        
-        st.rerun()
-    
-    # Auto-refresh functionality (now works with monitor)
-    if st.session_state.auto_refresh:
-        # Show auto-refresh status
-        st.caption(f"Auto-refresh active • Monitor integration enabled")
-        
-        # Show auto-refresh indicator
-        st.markdown(f"""
-        <div style="position: fixed; bottom: 10px; right: 10px; z-index: 999; 
-                    background: rgba(34, 139, 34, 0.9); color: white; 
-                    padding: 8px 12px; border-radius: 20px; font-size: 12px;">
-            🔍 Monitor Active • Refresh: {st.session_state.refresh_interval}s
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Periodic refresh to check for monitor signals
-        time.sleep(st.session_state.refresh_interval)
-        st.rerun()
-    
-    else:
-        st.caption("Auto-refresh disabled • Use manual refresh to update")
+
 
 if __name__ == "__main__":
     main()
