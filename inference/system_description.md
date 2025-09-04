@@ -65,7 +65,7 @@ The system classifies LEGO bricks into the following categories:
 └────────────────────────────────────────────────────────────────────────┘
 ```
 **Processes:**
-- main process taking care of classificatio and motor control
+- main process taking care of classification and motor control
 - second process to make dashboard independant
 - background process used to monitor for updates and signal when detecting them
 
