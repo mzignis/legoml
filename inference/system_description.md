@@ -97,7 +97,7 @@ The system classifies LEGO bricks into the following categories:
 - Comunication between the Raspberry Pi and PyBricks Hub occurs entirely over bluetooth
 - The onnections between the camera and Raspberry Pi as well as the Hub and the motors are over cable
 
-## Control Flow
+### Control Flow
 
 ```
 main.py (Entry Point)
