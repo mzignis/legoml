@@ -524,6 +524,10 @@ def render_dashboard_content():
         
         if st.button("Manual Refresh"):
             st.rerun()
+
+        if st.button("Stop Monitoring"):
+            st.session_state.monitoring_active = False
+            st.success("Monitoring stopped")
         
         st.text(f"Last updated: {time.strftime('%H:%M:%S')}")
         st.info("Auto-monitoring: Every 2s")
@@ -577,22 +581,26 @@ def main():
     
     # Render dashboard content once
     render_dashboard_content()
-    
-    # Efficient monitoring loop - only rerun when signal detected
-    while True:
+
+    content_container = st.empty()
+
+    if 'monitoring_active' not in st.session_state:
+        st.session_state.monitoring_active = True
+
+    while st.session_state.monitoring_active:
+        # Check for updates
         has_update, signal_info = check_for_signal_file()
-        
-        if has_update:
-            # Show brief update notification
-            st.success("Real-time update detected! Refreshing...")
-            if signal_info:
-                st.sidebar.success(f"Signal at: {signal_info['time_str']}")
-            
-            time.sleep(0.5)  # Brief pause to show notification
-            st.rerun()  # Refresh with new data
-            break  # Exit loop since st.rerun() restarts everything
-        
-        time.sleep(2)  # Wait 2 seconds before next check
+
+        # Always render content (either updated or same)
+        with content_container.container():
+            render_dashboard_content()
+
+            # Show update status if there was a signal
+            if has_update and signal_info:
+                st.success(f"✅ Updated at: {signal_info['time_str']}")
+
+        # Wait before next check
+        time.sleep(2)
 
 if __name__ == "__main__":
     main()
