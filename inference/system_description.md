@@ -472,14 +472,14 @@ Stop dashboard and monitoring processes.
 #### 1. Dependency issues on startup
 **Symptoms**: Failiure to start program despite requirements being installed
 
-**Solutions**
+**Suggestions**:
 - Make sure to enable system side dependencies in your venv config
 - Confirm no dependency installations failed
 
 #### 2. Camera Initialization Failed
 **Symptoms**: Error messages about camera not found
 
-**Solutions**:
+**Suggestions**:
 - Verify camera module connection
 - Check camera is enabled in raspi-config
 - Ensure no other processes are using camera
@@ -487,7 +487,7 @@ Stop dashboard and monitoring processes.
 #### 3. Bluetooth Connection Issues
 **Symptoms**: Cannot find or connect to Pybricks hub
 
-**Solutions**:
+**Suggestions**:
 - Ensure hub is powered on and not connected elsewhere
 - Check hub name matches `HUB_NAME` in configuration
 - Restart Bluetooth service: `sudo systemctl restart bluetooth`
@@ -495,7 +495,7 @@ Stop dashboard and monitoring processes.
 #### 4. Model Loading Errors
 **Symptoms**: TorchScript model fails to load
 
-**Solutions**:
+**Suggestions**:
 - Verify model file path and permissions
 - Ensure PyTorch version compatibility
 - Check available memory and disk space
@@ -503,7 +503,7 @@ Stop dashboard and monitoring processes.
 #### 5. Pybricks Hub Issues
 **Symptoms**: Hub not responding to commands or connection drops
 
-**Solutions**:
+**Suggestions**:
 - Verify hub firmware is properly flashed with Pybricks
 - Check hub battery level and charging status
 - Ensure hub MicroPython code is deployed correctly
@@ -512,7 +512,7 @@ Stop dashboard and monitoring processes.
 - Check for mechanical obstructions in pusher/conveyor mechanisms
 
 #### 6. Dashboard Not Loading
-**Symptoms**: Dashboard doesn't open or shows errors
+**Suggestions**: Dashboard doesn't open or shows errors
 
 **Solutions**:
 - Check port 8501 is not in use by other processes (all of these should close on startup of main)
