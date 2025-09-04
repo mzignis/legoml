@@ -1,5 +1,3 @@
-import asyncio
-
 class SortingStrategy:
     def __init__(self, hardware_controller):
         self.hardware = hardware_controller
