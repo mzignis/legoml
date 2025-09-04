@@ -8,7 +8,7 @@ from update_detector import monitor_process
 
 
 class DashboardConnector:
-    def __init__(self, data_file="/home/candfpi4b/fresh_repo/dashboard_data.json", snapshots_dir="/home/candfpi4b/fresh_repo/snapshots"):
+    def __init__(self, data_file="/home/candfpi4b/fresh_repo/legoml/inference/dashboard_data.json", snapshots_dir="/home/candfpi4b/fresh_repo/legoml/inference/snapshots"):
         self.data_file = Path(data_file)
         self.snapshots_dir = Path(snapshots_dir)
         self.dashboard_process = None
@@ -52,10 +52,12 @@ class DashboardConnector:
                 'DASHBOARD_MONITOR_ENABLED': 'true'  # Signal that monitor is active
             })
             
-            # Run streamlit with configuration flags
+            # Run streamlit with configuration flags and pass paths as arguments
             subprocess.run([
                 "streamlit", "run", 
                 "/home/candfpi4b/fresh_repo/legoml/inference/inference_system_v1/dashboard_v1.py",
+                str(self.data_file),  # Pass data file path as first argument
+                str(self.snapshots_dir),  # Pass snapshots dir as second argument
                 "--server.port=8501",
                 "--server.address=localhost",  # Local access only
                 "--browser.gatherUsageStats=false",  # Disable usage stats

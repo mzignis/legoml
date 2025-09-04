@@ -1,15 +1,16 @@
 from brick_classifier import BrickClassifier
 
 class ClassifierManager:
-    def __init__(self, classifier_model_path):
+    def __init__(self, classifier_model_path, snapshots_folder):
         self.classifier = None
         self.classifier_model_path = classifier_model_path
+        self.snapshots_folder = snapshots_folder
 
 
     def initialize_classifier(self):
         try:
             print("Initializing brick classifier...")
-            self.classifier = BrickClassifier(self.classifier_model_path)
+            self.classifier = BrickClassifier(self.classifier_model_path, self.snapshots_folder)
             print("Brick classifier initialized successfully!")
             return True
         except Exception as e:

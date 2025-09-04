@@ -125,8 +125,9 @@ class UpdateDetector:
     def _send_update_signal(self):
         """Send update signal via file for Streamlit integration."""
         try:
-            # Create a signal file that the dashboard can detect
-            signal_file = Path("/home/candfpi4b/fresh_repo/legoml/inference/inference_system_v1/.dashboard_update_signal")
+            # Create a signal file that the dashboard can detect (relative to this script)
+            script_dir = Path(__file__).parent
+            signal_file = script_dir / ".dashboard_update_signal"
             signal_file.touch()
             print(f"📡 Update signal sent at {time.strftime('%H:%M:%S')}")
         except Exception as e:
@@ -290,9 +291,9 @@ if __name__ == "__main__":
             except KeyboardInterrupt:
                 break
     
-    # Test the system
-    JSON_PATH = "/home/candfpi4b/fresh_repo/legoml/dashboard_data.json"
-    SNAPSHOTS_FOLDER = "/home/candfpi4b/fresh_repo/snapshots"
+    # Test the system with default paths
+    JSON_PATH = "/home/candfpi4b/fresh_repo/legoml/inference/dashboard_data.json"
+    SNAPSHOTS_FOLDER = "/home/candfpi4b/fresh_repo/legoml/inference/snapshots"
     
     # Start monitor
     monitor_proc = mp.Process(target=monitor_process, args=(JSON_PATH, SNAPSHOTS_FOLDER))

@@ -15,7 +15,7 @@ import threading
 # ----------------------------
 
 class BrickClassifier:
-    def __init__(self, model_path, snapshot_dir="snapshots"):
+    def __init__(self, model_path, snapshot_dir="/home/candfpi4b/fresh_repo/legoml/inference/snapshots"):
         self.model_path = model_path
         self.snapshot_dir = snapshot_dir
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

@@ -10,11 +10,17 @@ async def main():
 
     # You can customize these parameters
     CLASSIFIER_MODEL_PATH = "/home/candfpi4b/fresh_repo/legoml/inference/inference_system_v1/brick_classifier_simple_torchscript.pt"
+    JSON_FILE = "/home/candfpi4b/fresh_repo/legoml/inference/dashboard_data.json"
+    SNAPSHOTS_FOLDER = "/home/candfpi4b/fresh_repo/legoml/inference/snapshots"
     SAME_CLASS_INTERVAL = 6.0  # Minimum time between processing same class (used for both classifier and orchestrator)
     CHECK_INTERVAL = 4.0  # How often to check for new predictions 
     CONFIDENCE_THRESHOLD = 0.5  # Minimum confidence to process a brick
 
-    orchestrator = SortingOrchestrator(CLASSIFIER_MODEL_PATH)
+    orchestrator = SortingOrchestrator(
+        classifier_model_path=CLASSIFIER_MODEL_PATH,
+        json_file=JSON_FILE,
+        snapshots_folder=SNAPSHOTS_FOLDER
+    )
 
     try:
         # Initialize all system components

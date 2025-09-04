@@ -9,11 +9,11 @@ from dashboard_connector import DashboardConnector
 
 
 class SortingOrchestrator:
-    def __init__(self, classifier_model_path):
+    def __init__(self, classifier_model_path, json_file, snapshots_folder):
         self.hardware = HardwareController()
-        self.classifier = ClassifierManager(classifier_model_path)
+        self.classifier = ClassifierManager(classifier_model_path, snapshots_folder)
         self.strategy = SortingStrategy(self.hardware)
-        self.dashboard = DashboardConnector()
+        self.dashboard = DashboardConnector(json_file, snapshots_folder)
         self.running = False
         self.brick_queue = []  # Queue of pending brick processing tasks
         self.conveyor_stop_time = 0  # When the conveyor should stop

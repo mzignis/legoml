@@ -3,12 +3,23 @@ import os
 import glob
 import time
 import json
+import sys
 from PIL import Image
 from pathlib import Path
 import plotly.graph_objects as go
 
-# Signal file location
-UPDATE_SIGNAL_FILE = Path("/home/candfpi4b/fresh_repo/legoml/inference/inference_system_v1/.dashboard_update_signal")
+# Parse command line arguments for configurable paths
+if len(sys.argv) >= 3:
+    DATA_FILE_PATH = sys.argv[1]
+    SNAPSHOTS_DIR_PATH = sys.argv[2]
+else:
+    # Default fallback paths
+    DATA_FILE_PATH = "/home/candfpi4b/fresh_repo/legoml/inference/dashboard_data.json"
+    SNAPSHOTS_DIR_PATH = "/home/candfpi4b/fresh_repo/legoml/inference/snapshots"
+
+# Signal file location (relative to current script location)
+SCRIPT_DIR = Path(__file__).parent
+UPDATE_SIGNAL_FILE = SCRIPT_DIR / ".dashboard_update_signal"
 
 st.set_page_config(
     page_title="Image Analysis Dashboard",
@@ -16,7 +27,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Dark theme CSS styling
+# Complete dark theme CSS styling with fixed metrics
 dark_theme_css = """
 <style>
     /* Main app styling */
@@ -57,17 +68,53 @@ dark_theme_css = """
         font-weight: 500;
     }
 
-    /* Metric styling */
+    /* Enhanced metric styling - prevents darker/shady appearance */
     [data-testid="metric-container"] {
-        background-color: #3d3d3d;
-        border: 1px solid #505050;
-        padding: 12px;
-        border-radius: 8px;
-        margin: 5px 0;
+        background-color: #3d3d3d !important;
+        border: 1px solid #505050 !important;
+        padding: 12px !important;
+        border-radius: 8px !important;
+        margin: 5px 0 !important;
+        transition: none !important;
+        animation: none !important;
+        opacity: 1 !important;
     }
 
-    [data-testid="metric-container"] > div {
-        color: #ffffff;
+    [data-testid="metric-container"]:hover {
+        background-color: #3d3d3d !important;
+        opacity: 1 !important;
+    }
+
+    /* Ensure all metric text stays white */
+    [data-testid="metric-container"] > div,
+    [data-testid="metric-container"] div,
+    [data-testid="metric-container"] span,
+    [data-testid="metric-container"] p {
+        color: #ffffff !important;
+        transition: none !important;
+        opacity: 1 !important;
+    }
+
+    /* Specific metric value and label styling */
+    [data-testid="metric-container"] [data-testid="metric-value"] {
+        color: #ffffff !important;
+        font-weight: 600 !important;
+    }
+
+    [data-testid="metric-container"] [data-testid="metric-label"] {
+        color: #cccccc !important;
+        opacity: 1 !important;
+    }
+
+    [data-testid="metric-container"] [data-testid="metric-delta"] {
+        transition: none !important;
+        opacity: 1 !important;
+    }
+
+    /* Disable any fade/transition effects on metric updates */
+    [data-testid="metric-container"] * {
+        transition: none !important;
+        animation: none !important;
     }
 
     /* Text styling */
@@ -120,6 +167,36 @@ dark_theme_css = """
         padding: 10px;
         margin-bottom: 10px;
     }
+
+    /* Button styling consistency */
+    .stButton button {
+        background-color: #404040;
+        color: #ffffff;
+        border: 1px solid #505050;
+        transition: none !important;
+    }
+
+    .stButton button:hover {
+        background-color: #505050;
+        border-color: #606060;
+    }
+
+    /* Column styling to prevent layout shifts */
+    .stColumns {
+        gap: 1rem;
+    }
+
+    /* Success/Warning/Error message styling */
+    .stAlert {
+        background-color: transparent;
+    }
+
+    /* Prevent any flickering on updates */
+    .stApp > div,
+    .stApp > div > div {
+        transition: none !important;
+        animation: none !important;
+    }
 </style>
 """
 st.markdown(dark_theme_css, unsafe_allow_html=True)
@@ -139,7 +216,7 @@ def check_for_signal_file():
 
 def load_real_time_data():
     """Load real-time prediction data from JSON file"""
-    data_file = Path("/home/candfpi4b/fresh_repo/dashboard_data.json")
+    data_file = Path(DATA_FILE_PATH)
     
     if data_file.exists():
         try:
@@ -211,10 +288,10 @@ def get_metric_values():
 
 def load_latest_snapshots(limit=5):
     """Load the most recent snapshot images"""
-    snapshots_dir = Path("../../snapshots")
+    snapshots_dir = Path(SNAPSHOTS_DIR_PATH)
     if snapshots_dir.exists():
         image_files = sorted(
-            glob.glob(str(snapshots_dir / "*.JPG")),
+            glob.glob(str(snapshots_dir / "*.jpg")),
             key=lambda x: Path(x).stat().st_mtime,
             reverse=True
         )
@@ -305,7 +382,7 @@ def amount_metric(state, num):
 
     st.markdown(close_card(), unsafe_allow_html=True)
 
-def parameter_metrics(parameters, label): 
+def parameter_metrics(parameters, label):
     """Display parameter metrics in a card"""
     st.markdown(create_card_header(label), unsafe_allow_html=True)
 
@@ -377,7 +454,7 @@ def extract_confidence_from_filename(filepath):
 def display_image_vertical_with_metrics(image_paths):    
     """Display images vertically with confidence metrics"""
     st.markdown(create_card_header("Recent Snapshots", "Latest images"), unsafe_allow_html=True)
-    placeholder_path = "placeholder.jpg"
+    #placeholder_path = "placeholder.jpg"
     if not image_paths:
         st.warning("No JPG images found in the snapshots folder.")
         return
@@ -409,10 +486,10 @@ def display_image_vertical_with_metrics(image_paths):
     else:
         # No images → placeholder as most recent
         try:
-            placeholder_image = Image.open(placeholder_path)
-            resized_placeholder = placeholder_image.resize((400, 200), Image.Resampling.LANCZOS)
+            #placeholder_image = Image.open(placeholder_path)
+            #resized_placeholder = placeholder_image.resize((400, 200), Image.Resampling.LANCZOS)
             st.markdown('<div class="image-container">', unsafe_allow_html=True)
-            st.image(resized_placeholder, use_container_width=True, caption="Most Recent")
+            #st.image(resized_placeholder, use_container_width=True, caption="Most Recent")
             st.markdown('</div>', unsafe_allow_html=True)
 
         except Exception as e:
@@ -454,8 +531,8 @@ def display_image_vertical_with_metrics(image_paths):
         else:
             # Always show placeholder with metric
             try:
-                placeholder_img = Image.open(placeholder_path)
-                resized_placeholder = placeholder_img.resize((200, 100), Image.Resampling.LANCZOS)
+                #placeholder_img = Image.open(placeholder_path)
+                #resized_placeholder = placeholder_img.resize((200, 100), Image.Resampling.LANCZOS)
 
                 with target_col:
                     metric_col, img_col = st.columns([2, 4])
@@ -465,7 +542,7 @@ def display_image_vertical_with_metrics(image_paths):
 
                     with img_col:
                         st.markdown('<div class="image-container">', unsafe_allow_html=True)
-                        st.image(resized_placeholder, use_container_width=True)
+                        #st.image(resized_placeholder, use_container_width=True)
                         st.markdown('</div>', unsafe_allow_html=True)
             except Exception:
                 with target_col:
@@ -474,13 +551,14 @@ def display_image_vertical_with_metrics(image_paths):
                     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown(close_card(), unsafe_allow_html=True)
 
+
 def render_dashboard_content():
     """Render the main dashboard content once"""
     # Initialize and load data
     initialize_class_counters()
     real_time_data = load_real_time_data()
     latest_images = load_latest_snapshots()
-    
+
     if real_time_data:
         update_class_counters(real_time_data)
 
@@ -492,72 +570,57 @@ def render_dashboard_content():
     </div>
     """, unsafe_allow_html=True)
 
-
     # Sidebar
     with st.sidebar:
         st.header("Settings")
-
-        if st.button("Stop Monitoring"):
-            st.session_state.monitoring_active = False
-            st.success("Monitoring stopped")
-
-        # Stop/Start buttons
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("Stop"):
-                st.session_state.monitoring_active = False
-        with col2:
-            if st.button("Start"):
-                st.session_state.monitoring_active = True
 
         if UPDATE_SIGNAL_FILE.exists():
             st.warning("Signal file detected!")
         else:
             st.success("Monitoring active")
-        
+
         st.info(f"Watching: {UPDATE_SIGNAL_FILE.name}")
-        
+
         if real_time_data:
             st.success("Real-time data loaded")
             if 'timestamp' in real_time_data:
-                st.text(f"Data timestamp: {real_time_data['timestamp']}")
+                st.text(f"Data timestamp")
         else:
             st.error("No real-time data")
-        
-        # Interactive buttons that work during monitoring
+
+        # Interactive buttons with unique keys
         if st.button("Test Signal"):
             UPDATE_SIGNAL_FILE.touch()
             st.success("Test signal created")
-        
+
         if st.button("Reset Counters"):
             for key in st.session_state.class_counters:
                 st.session_state.class_counters[key] = 0
             st.success("Counters reset!")
-            st.rerun()
-        
+
         st.text(f"Last updated: {time.strftime('%H:%M:%S')}")
         st.info("Auto-monitoring: Every 2s")
-    
+
     # Main content
-    if not Path("../../snapshots").exists():
+    if not Path(SNAPSHOTS_DIR_PATH).exists():
         st.error("'snapshots' folder does not exist.")
         return
-    
+
     if not latest_images:
         st.warning("No images found in snapshots folder.")
         return
-    
+
     col1, col2, col3 = st.columns([1, 1, 1])
-    
+
     with col1:
         st.header("Recent Snapshots")
         st.markdown("*Latest captured images with confidence scores*")
         display_image_vertical_with_metrics(latest_images)
-    
+
     with col2:
         st.header("Analytics & Metrics")
         st.markdown("*Real-time analysis and performance data*")
-        
+
         predictions_data = create_predictions_data(real_time_data)
         predictions(predictions_data)
 
@@ -583,30 +646,26 @@ st.set_page_config(
 )
 
 def main():
-
-
-
-    if 'monitoring_active' not in st.session_state:
-        st.session_state.monitoring_active = True
-
-    main_content = st.empty()
-
-    while st.session_state.monitoring_active:
-
-        # Check for updates
+    st.title("Image Analysis Dashboard")
+    
+    # Render dashboard content once
+    render_dashboard_content()
+    
+    # Efficient monitoring loop - only rerun when signal detected
+    while True:
         has_update, signal_info = check_for_signal_file()
-
-        # Always render content (either updated or same)
-        with main_content.container():
-            st.title("Image Analysis Dashboard")
-
-            # Show update status if there was a signal
-            if has_update and signal_info:
-                st.success(f"✅ Updated at: {signal_info['time_str']}")
-
-            render_dashboard_content()
-        # Wait before next check
-        time.sleep(2)
+        
+        if has_update:
+            # Show brief update notification
+            st.success("Real-time update detected! Refreshing...")
+            if signal_info:
+                st.sidebar.success(f"Signal at: {signal_info['time_str']}")
+            
+            time.sleep(0.5)  # Brief pause to show notification
+            st.rerun()  # Refresh with new data
+            break  # Exit loop since st.rerun() restarts everything
+        
+        time.sleep(2)  # Wait 2 seconds before next check
 
 if __name__ == "__main__":
     main()
