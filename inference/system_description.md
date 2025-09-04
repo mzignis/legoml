@@ -4,8 +4,8 @@
 
 1. [System Overview](#system-overview)
 2. [Architecture](#architecture)
-3. [Component Descriptions](#component-descriptions)
-4. [Installation and Setup](#installation-and-setup)
+3. [Installation and Setup](#installation-and-setup)
+4. [Component Descriptions](#component-descriptions)
 5. [Usage](#usage)
 6. [Configuration](#configuration)
 7. [API Reference](#api-reference)
