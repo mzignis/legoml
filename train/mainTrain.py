@@ -568,10 +568,6 @@ def main():
         print(f"  {key}: {value}")
 
 
-    x = 1
-    if x == 1:
-        return
-
     # Load datasets
     try:
         train_dataset = BrickDataset(config['dataset_path'], 'train', get_transforms('train'))

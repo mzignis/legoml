@@ -10,6 +10,120 @@ import plotly.graph_objects as go
 # Signal file location
 UPDATE_SIGNAL_FILE = Path("/home/candfpi4b/fresh_repo/legoml/inference/inference_system_v1/.dashboard_update_signal")
 
+st.set_page_config(
+    page_title="Image Analysis Dashboard",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+# Dark theme CSS styling
+dark_theme_css = """
+<style>
+    /* Main app styling */
+    .stApp {
+        background-color: #1e1e1e;
+        color: #ffffff;
+    }
+
+    /* Hide Streamlit branding */
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    .stApp > header {visibility: hidden;}
+
+    /* Card styling */
+    .dashboard-card {
+        background-color: #2d2d2d;
+        padding: 20px;
+        border-radius: 10px;
+        border: 1px solid #404040;
+        margin-bottom: 20px;
+        height: 100%;
+    }
+
+    .dashboard-card h3 {
+        color: #ffffff;
+        margin-top: 0;
+        margin-bottom: 15px;
+        font-size: 1.2rem;
+        font-weight: 600;
+    }
+
+    .dashboard-card h4 {
+        color: #b3b3b3;
+        margin-top: 0;
+        margin-bottom: 10px;
+        font-size: 1rem;
+        font-weight: 500;
+    }
+
+    /* Metric styling */
+    [data-testid="metric-container"] {
+        background-color: #3d3d3d;
+        border: 1px solid #505050;
+        padding: 12px;
+        border-radius: 8px;
+        margin: 5px 0;
+    }
+
+    [data-testid="metric-container"] > div {
+        color: #ffffff;
+    }
+
+    /* Text styling */
+    .stMarkdown {
+        color: #ffffff;
+    }
+
+    /* Sidebar styling */
+    .css-1d391kg {
+        background-color: #2d2d2d;
+    }
+
+    /* Data editor styling */
+    .stDataFrame {
+        background-color: #2d2d2d;
+    }
+
+    /* Chart container */
+    .chart-container {
+        background-color: #2d2d2d;
+        border-radius: 8px;
+        padding: 10px;
+    }
+
+    /* Header styling */
+    .main-header {
+        background-color: #2d2d2d;
+        padding: 15px 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        border: 1px solid #404040;
+    }
+
+    .main-header h1 {
+        color: #ffffff;
+        margin: 0;
+        font-size: 1.8rem;
+    }
+
+    .main-header p {
+        color: #b3b3b3;
+        margin: 5px 0 0 0;
+        font-size: 0.9rem;
+    }
+
+    /* Image container styling */
+    .image-container {
+        background-color: #2d2d2d;
+        border-radius: 8px;
+        padding: 10px;
+        margin-bottom: 10px;
+    }
+</style>
+"""
+st.markdown(dark_theme_css, unsafe_allow_html=True)
+
 def check_for_signal_file():
     """Simple check for signal file - returns (has_update, signal_info)"""
     if UPDATE_SIGNAL_FILE.exists():
@@ -97,10 +211,10 @@ def get_metric_values():
 
 def load_latest_snapshots(limit=5):
     """Load the most recent snapshot images"""
-    snapshots_dir = Path("/home/candfpi4b/fresh_repo/legoml/snapshots")
+    snapshots_dir = Path("../../snapshots")
     if snapshots_dir.exists():
         image_files = sorted(
-            glob.glob(str(snapshots_dir / "*.jpg")) + glob.glob(str(snapshots_dir / "*.JPG")),
+            glob.glob(str(snapshots_dir / "*.JPG")),
             key=lambda x: Path(x).stat().st_mtime,
             reverse=True
         )
@@ -145,46 +259,76 @@ def create_predictions_data(real_time_data):
             'confidences': [20, 20, 20, 20, 20]
         }
 
+
+def create_card_header(title, subtitle=None):
+    """Create a styled card header"""
+    if subtitle:
+        return f"""
+        <div class="dashboard-card">
+            <h3>{title}</h3>
+            <h4>{subtitle}</h4>
+        """
+    else:
+        return f"""
+        <div class="dashboard-card">
+            <h3>{title}</h3>
+        """
+
+def close_card():
+    """Close the card div"""
+    return "</div>"
+
+
+
 def amount_metric(state, num):
     """Display brick count metrics in a grid"""
-    with st.container():
-        st.markdown(f"### {state}")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric(label="W 1x3", value=num[0], border=True)
-        with col2:
-            st.metric(label="W 2x2", value=num[1], border=True)
-        with col3:
-            st.metric(label="W 2x4", value=num[2], border=True)
+    st.markdown(create_card_header(state), unsafe_allow_html=True)
 
-        col4, col5, col6 = st.columns(3)
-        with col4:
-            st.metric(label="B 2x2", value=num[3], border=True)
-        with col5:
-            st.metric(label="B 1x6", value=num[4], border=True)
-        with col6:
-            st.metric(label="B 2x6", value=num[5], border=True)
+    # Create 2 rows of 3 columns each
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric(label="W 1x3", value=num[0], border=True)
+    with col2:
+        st.metric(label="W 2x2", value=num[1], border=True)
+    with col3:
+        st.metric(label="W 2x4", value=num[2], border=True)
+
+    col4, col5, col6 = st.columns(3)
+
+    with col4:
+        st.metric(label="B 2x2", value=num[3], border=True)
+    with col5:
+        st.metric(label="B 1x6", value=num[4], border=True)
+    with col6:
+        st.metric(label="B 2x6", value=num[5], border=True)
+
+    st.markdown(close_card(), unsafe_allow_html=True)
 
 def parameter_metrics(parameters, label): 
-    """Display additional parameter metrics"""
-    with st.container():
-        st.markdown(f"### {label}")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric(label="Metric 1", value=parameters['A'], border=True)
-        with col2:
-            st.metric(label="Metric 2", value=parameters['B'], border=True)
+    """Display parameter metrics in a card"""
+    st.markdown(create_card_header(label), unsafe_allow_html=True)
 
-        col3, col4, col5 = st.columns(3)
-        with col3:
-            st.metric(label="Metric 3", value=parameters['C'], border=True)
-        with col4:
-            st.metric(label="Metric 4", value=parameters['D'], border=True)
-        with col5:
-            st.metric(label="Metric 5", value=parameters['E'], border=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric(label="Metric 1", value=parameters['A'], border=True)
+    with col2:
+        st.metric(label="Metric 2", value=parameters['B'], border=True)
+
+    col3, col4, col5 = st.columns(3)
+    with col3:
+        st.metric(label="Metric 3", value=parameters['C'], border=True)
+    with col4:
+        st.metric(label="Metric 4", value=parameters['D'], border=True)
+    with col5:
+        st.metric(label="Metric 5", value=parameters['E'], border=True)
+
+    st.markdown(close_card(), unsafe_allow_html=True)
 
 def predictions(data_dict):
-    """Create a Plotly horizontal bar chart for predictions"""
+    """Create a horizontal bar chart with dark theme"""
+    st.markdown(create_card_header("Top Categories", "Confidence Distribution"), unsafe_allow_html=True)
+
     with st.container():
         categories = data_dict['categories']
         confidences = data_dict['confidences']
@@ -194,11 +338,11 @@ def predictions(data_dict):
                 y=categories,
                 x=confidences,
                 orientation='h',
-                marker_color='#B34949',
+                marker_color='#4a9eff',
                 text=[round(conf, 1) for conf in confidences],
                 texttemplate='%{text}%',
                 textposition='inside',
-                textfont=dict(color='white', size=12)
+                textfont=dict(color='blue', size=12)
             )
         ])
         
@@ -211,11 +355,12 @@ def predictions(data_dict):
             plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(0,0,0,0)',
             font=dict(size=12),
-            xaxis=dict(showgrid=True, gridcolor='lightgray', gridwidth=1, range=[0, 100]),
-            yaxis=dict(showgrid=False, autorange='reversed')
+            xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.1)', gridwidth=1, range=[0, 100]),
+            yaxis=dict(showgrid=False,color='white',  autorange='reversed')
         )
         
         st.plotly_chart(fig, use_container_width=True)
+        st.markdown(close_card(), unsafe_allow_html=True)
 
 def extract_confidence_from_filename(filepath):
     """Extract confidence value from filename ending with conf{X.XXX}.jpg"""
@@ -231,51 +376,103 @@ def extract_confidence_from_filename(filepath):
 
 def display_image_vertical_with_metrics(image_paths):    
     """Display images vertically with confidence metrics"""
+    st.markdown(create_card_header("Recent Snapshots", "Latest images"), unsafe_allow_html=True)
+    placeholder_path = "placeholder.jpg"
     if not image_paths:
         st.warning("No JPG images found in the snapshots folder.")
         return
-    
-    image_sizes = [(400, 200), (360, 180), (300, 150), (240, 120), (200, 100)]
-    
-    confidence_scores = []
-    for image_path in image_paths:
-        conf = extract_confidence_from_filename(image_path)
-        confidence_scores.append(conf if conf is not None else 50.0)
-    
-    st.markdown("""
-    <style>
-    .stContainer > div { margin-bottom: 24px; }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    for i, image_path in enumerate(image_paths[:5]):
+
+    confidence_scores = [
+        extract_confidence_from_filename(path) or 50.0 for path in image_paths
+    ]
+
+    # --- Show most recent image with confidence ---
+    if image_paths:
         try:
-            current_image = Image.open(image_path)
-            target_width, target_height = image_sizes[i]
-            resized_image = current_image.resize((target_width, target_height), Image.Resampling.LANCZOS)
-            
+            current_image = Image.open(image_paths[0])
+            resized_image = current_image.resize((400, 200), Image.Resampling.LANCZOS)
+
             with st.container():
-                metric_col, img_col = st.columns([1, 4])
-                
+                metric_col, img_col = st.columns([2, 5])
+
                 with metric_col:
-                    confidence = confidence_scores[i]
-                    delta = None
-                    if i+1 < len(confidence_scores):
-                        delta = confidence - confidence_scores[i+1]
-                    
-                    st.metric(
-                        label="Confidence",
-                        value=f"{confidence:.1f}%",
-                        delta=f"{delta:.1f}%" if delta is not None else None
-                    )
-                
+                    conf = confidence_scores[0]
+                    delta = conf - confidence_scores[1] if len(confidence_scores) > 1 else None
+                    st.metric("Confidence", f"{conf:.1f}%", f"{delta:.1f}%" if delta else None)
+
                 with img_col:
-                    st.image(resized_image, width=target_width)
-                
-                st.write("")
-                
+                    st.markdown('<div class="image-container">', unsafe_allow_html=True)
+                    st.image(resized_image, use_container_width=True, caption="Most Recent")
+                    st.markdown('</div>', unsafe_allow_html=True)
         except Exception as e:
-            st.error(f"Error loading image {i+1}: {e}")
+            st.error(f"Error loading current image: {e}")
+    else:
+        # No images → placeholder as most recent
+        try:
+            placeholder_image = Image.open(placeholder_path)
+            resized_placeholder = placeholder_image.resize((400, 200), Image.Resampling.LANCZOS)
+            st.markdown('<div class="image-container">', unsafe_allow_html=True)
+            st.image(resized_placeholder, use_container_width=True, caption="Most Recent")
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        except Exception as e:
+            st.error(f"No images found and placeholder not available: {e}")
+
+    # --- Show grid of up to 4 previous images ---
+    st.markdown("**Previous Images**")
+    col1, col2 = st.columns(2)
+    previous_images = image_paths[1:5]
+
+    for i in range(4):  # always render 4 slots
+        target_col = col1 if i % 2 == 0 else col2
+
+        if i < len(previous_images):  # real image available
+            try:
+                img = Image.open(previous_images[i])
+                resized_img = img.resize((200, 100), Image.Resampling.LANCZOS)
+
+                with target_col:
+                    metric_col, img_col = st.columns([2, 4])
+
+                    with metric_col:
+                        conf_index = i + 1
+                        if conf_index < len(confidence_scores):
+                            conf = confidence_scores[conf_index]
+                            delta = conf - confidence_scores[conf_index + 1] if (conf_index + 1) < len(
+                                confidence_scores) else None
+                            st.metric("Confidence", f"{conf:.1f}%", f"{delta:.1f}%" if delta else None)
+                        else:
+                            st.metric("Confidence", "N/A")
+
+                    with img_col:
+                        st.markdown('<div class="image-container">', unsafe_allow_html=True)
+                        st.image(resized_img, use_container_width=True)
+                        st.markdown('</div>', unsafe_allow_html=True)
+
+            except Exception as e:
+                st.error(f"Error loading image {i + 2}: {e}")
+        else:
+            # Always show placeholder with metric
+            try:
+                placeholder_img = Image.open(placeholder_path)
+                resized_placeholder = placeholder_img.resize((200, 100), Image.Resampling.LANCZOS)
+
+                with target_col:
+                    metric_col, img_col = st.columns([2, 4])
+
+                    with metric_col:
+                        st.metric("Confidence", "N/A")
+
+                    with img_col:
+                        st.markdown('<div class="image-container">', unsafe_allow_html=True)
+                        st.image(resized_placeholder, use_container_width=True)
+                        st.markdown('</div>', unsafe_allow_html=True)
+            except Exception:
+                with target_col:
+                    st.markdown('<div class="image-container">', unsafe_allow_html=True)
+                    st.write("No image available")
+                    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown(close_card(), unsafe_allow_html=True)
 
 def render_dashboard_content():
     """Render the main dashboard content once"""
@@ -286,7 +483,16 @@ def render_dashboard_content():
     
     if real_time_data:
         update_class_counters(real_time_data)
-    
+
+    # Header
+    st.markdown("""
+    <div class="main-header">
+        <h1>🔍 Image Analysis Dashboard</h1>
+        <p>Real-time monitoring and analytics</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+
     # Sidebar
     with st.sidebar:
         st.header("Settings")
@@ -323,7 +529,7 @@ def render_dashboard_content():
         st.info("Auto-monitoring: Every 2s")
     
     # Main content
-    if not Path("/home/candfpi4b/fresh_repo/legoml/snapshots").exists():
+    if not Path("../../snapshots").exists():
         st.error("'snapshots' folder does not exist.")
         return
     
@@ -331,34 +537,34 @@ def render_dashboard_content():
         st.warning("No images found in snapshots folder.")
         return
     
-    left_col, right_col = st.columns([1, 1])
+    col1, col2, col3 = st.columns([1, 1, 1])
     
-    with left_col:
+    with col1:
         st.header("Recent Snapshots")
         st.markdown("*Latest captured images with confidence scores*")
         display_image_vertical_with_metrics(latest_images)
     
-    with right_col:
+    with col2:
         st.header("Analytics & Metrics")
         st.markdown("*Real-time analysis and performance data*")
         
         predictions_data = create_predictions_data(real_time_data)
         predictions(predictions_data)
-        
-        inner_left_col, inner_right_col = st.columns(2)
-        undamaged_counts, damaged_counts = get_metric_values()
-        
-        with inner_left_col:
-            amount_metric("Undamaged", undamaged_counts)
-        
-        with inner_right_col:
-            amount_metric("Damaged", damaged_counts)
-        
+
         parameters = {
-            'A': '25.5%', 'B': '$18.2K', 'C': '33.1°C', 
+            'A': '25.5%', 'B': '$18.2K', 'C': '33.1°C',
             'D': '12.7 mins', 'E': '10.5 kg'
         }
         parameter_metrics(parameters, "Parameter Metrics")
+
+    with col3:
+        st.header("Statistics")
+        st.markdown("Collected data")
+
+        undamaged_counts, damaged_counts = get_metric_values()
+        amount_metric("Damaged", damaged_counts)
+        amount_metric("Undamaged", undamaged_counts)
+
 
 st.set_page_config(
     page_title="Image Dashboard",

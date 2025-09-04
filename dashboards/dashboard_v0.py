@@ -363,7 +363,7 @@ def main():
         
         image_folder = st.text_input(
             "Image Folder Path", 
-            value=r"C:\Users\atok\OneDrive - C&F S.A\Desktop\dashboard\images", 
+            value=r"../snapshots",
             help="Enter the path to the folder containing your JPG images"
         )
         
