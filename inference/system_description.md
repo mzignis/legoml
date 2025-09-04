@@ -471,12 +471,14 @@ Stop dashboard and monitoring processes.
 
 #### 1. Dependency issues on startup
 **Symptoms**: Failiure to start program despite requirements being installed
+
 **Solutions**
 - Make sure to enable system side dependencies in your venv config
 - Confirm no dependency installations failed
 
 #### 2. Camera Initialization Failed
 **Symptoms**: Error messages about camera not found
+
 **Solutions**:
 - Verify camera module connection
 - Check camera is enabled in raspi-config
@@ -484,6 +486,7 @@ Stop dashboard and monitoring processes.
 
 #### 3. Bluetooth Connection Issues
 **Symptoms**: Cannot find or connect to Pybricks hub
+
 **Solutions**:
 - Ensure hub is powered on and not connected elsewhere
 - Check hub name matches `HUB_NAME` in configuration
@@ -491,6 +494,7 @@ Stop dashboard and monitoring processes.
 
 #### 4. Model Loading Errors
 **Symptoms**: TorchScript model fails to load
+
 **Solutions**:
 - Verify model file path and permissions
 - Ensure PyTorch version compatibility
@@ -498,6 +502,7 @@ Stop dashboard and monitoring processes.
 
 #### 5. Pybricks Hub Issues
 **Symptoms**: Hub not responding to commands or connection drops
+
 **Solutions**:
 - Verify hub firmware is properly flashed with Pybricks
 - Check hub battery level and charging status
@@ -508,6 +513,7 @@ Stop dashboard and monitoring processes.
 
 #### 6. Dashboard Not Loading
 **Symptoms**: Dashboard doesn't open or shows errors
+
 **Solutions**:
 - Check port 8501 is not in use by other processes (all of these should close on startup of main)
 - Verify Streamlit installation
@@ -518,7 +524,7 @@ Stop dashboard and monitoring processes.
 1. **Reduce Image Processing Load**:
    - Adjust camera resolution
    - Optimize crop parameters
-   - Increase prediction intervals
+   - Alter prediction intervals
 
 2. **Improve Classification Accuracy**:
    - Ensure proper lighting conditions
