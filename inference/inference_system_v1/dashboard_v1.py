@@ -496,7 +496,20 @@ def render_dashboard_content():
     # Sidebar
     with st.sidebar:
         st.header("Settings")
-        
+
+        if st.button("Stop Monitoring"):
+            st.session_state.monitoring_active = False
+            st.success("Monitoring stopped")
+
+        # Stop/Start buttons
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Stop"):
+                st.session_state.monitoring_active = False
+        with col2:
+            if st.button("Start"):
+                st.session_state.monitoring_active = True
+
         if UPDATE_SIGNAL_FILE.exists():
             st.warning("Signal file detected!")
         else:
@@ -521,13 +534,6 @@ def render_dashboard_content():
                 st.session_state.class_counters[key] = 0
             st.success("Counters reset!")
             st.rerun()
-        
-        if st.button("Manual Refresh"):
-            st.rerun()
-
-        if st.button("Stop Monitoring"):
-            st.session_state.monitoring_active = False
-            st.success("Monitoring stopped")
         
         st.text(f"Last updated: {time.strftime('%H:%M:%S')}")
         st.info("Auto-monitoring: Every 2s")
@@ -577,28 +583,28 @@ st.set_page_config(
 )
 
 def main():
-    st.title("Image Analysis Dashboard")
-    
-    # Render dashboard content once
-    render_dashboard_content()
 
-    content_container = st.empty()
+
 
     if 'monitoring_active' not in st.session_state:
         st.session_state.monitoring_active = True
 
+    main_content = st.empty()
+
     while st.session_state.monitoring_active:
+
         # Check for updates
         has_update, signal_info = check_for_signal_file()
 
         # Always render content (either updated or same)
-        with content_container.container():
-            render_dashboard_content()
+        with main_content.container():
+            st.title("Image Analysis Dashboard")
 
             # Show update status if there was a signal
             if has_update and signal_info:
                 st.success(f"✅ Updated at: {signal_info['time_str']}")
 
+            render_dashboard_content()
         # Wait before next check
         time.sleep(2)
 
