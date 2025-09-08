@@ -69,6 +69,9 @@ The system classifies LEGO bricks into the following categories:
 - second process to make dashboard independant
 - background process used to monitor for updates and signal when detecting them
 
+**Side note:**
+For further development its recomended to move the dashboard process off the raspberry pi as it displays data significantly slower than we generate and process it due to the raspberry pi's limited computational capacity.
+
 ### Communication Pipeline
 
 ```
@@ -512,12 +515,13 @@ Stop dashboard and monitoring processes.
 - Check for mechanical obstructions in pusher/conveyor mechanisms
 
 #### 6. Dashboard Not Loading
-**Suggestions**: Dashboard doesn't open or shows errors
+**Symptoms**: Dashboard doesn't open or shows errors
 
-**Solutions**:
+**Suggestions**:
 - Check port 8501 is not in use by other processes (all of these should close on startup of main)
 - Verify Streamlit installation
 - Check file permissions for JSON and snapshot directories
+- The raspberry pi 4b we are using cannot use nupmy/pandas and many streamlit modules use those internally, check non of those have been added to the dashboard
 
 ### Performance Optimization
 
