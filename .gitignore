@@ -214,3 +214,11 @@ training_history.png
 brick_classifier.pth
 training_summary.json
 dataset_split
+pre_model_sim
+mergefilesdata.py
+dashboards
+new
+inference/inference_system_v0_ prototype
+inference/misc
+snapshots
+

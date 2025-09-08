@@ -26,7 +26,7 @@ def get_default_config():
     """Return default configuration if JSON file is missing"""
     return {
         "dataset_config": {
-            "raw_data_dir": "brick_dataset/raw",
+            "raw_data_dir": "/brick_dataset/raw",
             "output_dir": "dataset_split",
             "random_seed": 42
         },

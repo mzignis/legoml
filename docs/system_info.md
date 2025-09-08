@@ -48,7 +48,7 @@ LEGO Hub Controller
 
 #### Raspberry Pi
 - **Model:** Raspberry Pi 4B
-- **Operating System Version:** Raspberry Pi OS Bullseye
+- **Operating System Version:** Raspberry Pi OS Bookworm (12)
 - **RAM:** 8GB
 - **Other Important Information:**
   - Camera Module 2, Samsung EVO Plus 64GB microSD
@@ -70,6 +70,30 @@ sudo apt update
 sudo apt install python3 python3-pip
 ```
 
+### Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/mzignis/legoml.git
+   cd legoml
+   ```
+
+2. **Install dependencies**
+
+   ```bash
+   #rPi
+   pip install -r requirementsRpi.txt
+   ```
+   ```bash
+   # Install rPi system dependencies
+   sudo apt update
+   sudo apt install python3-opencv libatlas-base-dev python3-picamera2
+   ```
+   ```bash
+   #Windows
+   pip install -r requirementsWin.txt
+   ```
+
 #### Communication Software
 **Main Libraries:**
 - **OpenCV** - Image processing
@@ -77,17 +101,13 @@ sudo apt install python3 python3-pip
 - **NumPy** - Matrix and array operations
 - **Matplotlib** - Data visualization
 
-#### Installation Instructions (Step by Step)
-
-[Detailed installation steps to be added]
-
-### 3.2 System Startup
-
-[System startup instructions to be added]
-
 ## 4. Neural Network / AI
 
 ### 4.1 Training Description
+
+## 🔧 Configuration
+
+Edit `train_config.json` `split_config.json`
 
 #### Data Collection
 - **Method:** Photos on conveyor belt
